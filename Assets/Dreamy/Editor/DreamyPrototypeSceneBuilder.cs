@@ -41,6 +41,7 @@ namespace Dreamy.Editor
             Camera camera = CreateCamera();
             DreamyVirtualJoystick joystick = CreateHud();
             CreateWorld(camera, joystick, idleFrames, walkFrames);
+            ValidatePlayerFrames(idleFrames, walkFrames);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[]
@@ -284,17 +285,36 @@ namespace Dreamy.Editor
             Text gold = CreateText(topBar.transform, "Gold Text", "Gold 0", new Vector2(0.50f, 0.5f));
             Text food = CreateText(topBar.transform, "Food Text", "Food 0", new Vector2(0.82f, 0.5f));
 
-            GameObject hint = CreatePanel(canvasObject.transform, "Touch Hint", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 132f));
-            RectTransform hintRect = hint.GetComponent<RectTransform>();
-            hintRect.sizeDelta = new Vector2(780f, 86f);
-            Text hintText = CreateText(hint.transform, "Hint Text", "Drag joystick to walk. Collect nearby resources.", new Vector2(0.5f, 0.5f));
-            hintText.fontSize = 32;
-
             DreamyVirtualJoystick joystick = CreateJoystick(canvasObject.transform);
 
             DreamyHud hud = canvasObject.AddComponent<DreamyHud>();
             hud.Bind(wood, gold, food);
             return joystick;
+        }
+
+        private static void ValidatePlayerFrames(Sprite[] idleFrames, Sprite[] walkFrames)
+        {
+            if (idleFrames == null || idleFrames.Length != 8 || walkFrames == null || walkFrames.Length != 6)
+            {
+                Debug.LogWarning("[Dreamy] Player animation frames were not generated as expected.");
+                return;
+            }
+
+            bool hasWideSheet = false;
+            for (int i = 0; i < idleFrames.Length; i++)
+            {
+                hasWideSheet |= idleFrames[i] != null && idleFrames[i].texture.width > 256;
+            }
+
+            for (int i = 0; i < walkFrames.Length; i++)
+            {
+                hasWideSheet |= walkFrames[i] != null && walkFrames[i].texture.width > 256;
+            }
+
+            if (hasWideSheet)
+            {
+                Debug.LogWarning("[Dreamy] Player is using a full sprite sheet instead of cropped animation frames.");
+            }
         }
 
         private static void CreateEventSystem()
