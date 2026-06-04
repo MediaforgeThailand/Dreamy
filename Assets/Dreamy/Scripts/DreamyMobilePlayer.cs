@@ -6,90 +6,112 @@ namespace Dreamy
     public sealed class DreamyMobilePlayer : MonoBehaviour
     {
         [SerializeField] private float moveSpeed = 4.2f;
-        [SerializeField] private float stopDistance = 0.08f;
-        [SerializeField] private Camera worldCamera;
-        [SerializeField] private Transform touchMarker;
+        [SerializeField] private DreamyVirtualJoystick joystick;
+        [SerializeField] private Vector2 minBounds = new Vector2(-3.3f, -5.2f);
+        [SerializeField] private Vector2 maxBounds = new Vector2(3.3f, 5.2f);
+        [SerializeField] private Sprite[] idleFrames;
+        [SerializeField] private Sprite[] walkFrames;
+        [SerializeField] private float idleFramesPerSecond = 4f;
+        [SerializeField] private float walkFramesPerSecond = 8f;
 
-        private Vector3 targetPosition;
+        private bool wasMoving;
+        private float animationTime;
         private SpriteRenderer spriteRenderer;
 
         private void Awake()
         {
             spriteRenderer = GetComponent<SpriteRenderer>();
-            targetPosition = transform.position;
-
-            if (worldCamera == null)
-            {
-                worldCamera = Camera.main;
-            }
+            ApplyFrame(idleFrames, 0);
         }
 
         private void Update()
         {
-            ReadTapInput();
-            MoveToTarget();
+            Vector2 input = ReadMovementInput();
+            Move(input);
+            Animate(input);
             TryCollectNearbyResource();
         }
 
-        private void ReadTapInput()
+        public void Bind(DreamyVirtualJoystick movementJoystick, Sprite[] idleSprites, Sprite[] walkSprites)
         {
-            if (worldCamera == null)
+            joystick = movementJoystick;
+            idleFrames = idleSprites;
+            walkFrames = walkSprites;
+            ApplyFrame(idleFrames, 0);
+        }
+
+        public void SetMovementBounds(Vector2 minimum, Vector2 maximum)
+        {
+            minBounds = minimum;
+            maxBounds = maximum;
+        }
+
+        private Vector2 ReadMovementInput()
+        {
+            Vector2 input = joystick != null ? joystick.Direction : Vector2.zero;
+
+            if (input.sqrMagnitude < 0.01f)
+            {
+                input = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+            }
+
+            return Vector2.ClampMagnitude(input, 1f);
+        }
+
+        private void Move(Vector2 input)
+        {
+            if (input.sqrMagnitude < 0.0025f)
             {
                 return;
             }
 
-            bool hasTap = false;
-            Vector2 screenPosition = Vector2.zero;
+            Vector3 current = transform.position;
+            Vector3 next = current + new Vector3(input.x, input.y, 0f) * (moveSpeed * Time.deltaTime);
+            next.x = Mathf.Clamp(next.x, minBounds.x, maxBounds.x);
+            next.y = Mathf.Clamp(next.y, minBounds.y, maxBounds.y);
+            transform.position = next;
 
-            if (Input.touchCount > 0)
+            if (spriteRenderer != null && Mathf.Abs(input.x) > 0.01f)
             {
-                Touch touch = Input.GetTouch(0);
-                hasTap = touch.phase == TouchPhase.Began || touch.phase == TouchPhase.Moved;
-                screenPosition = touch.position;
-            }
-            else if (Input.GetMouseButtonDown(0) || Input.GetMouseButton(0))
-            {
-                hasTap = true;
-                screenPosition = Input.mousePosition;
-            }
-
-            if (!hasTap)
-            {
-                return;
-            }
-
-            Vector3 world = worldCamera.ScreenToWorldPoint(new Vector3(screenPosition.x, screenPosition.y, -worldCamera.transform.position.z));
-            targetPosition = new Vector3(world.x, world.y, transform.position.z);
-
-            if (touchMarker != null)
-            {
-                touchMarker.position = new Vector3(targetPosition.x, targetPosition.y, touchMarker.position.z);
-                touchMarker.gameObject.SetActive(true);
+                spriteRenderer.flipX = input.x < 0f;
             }
         }
 
-        private void MoveToTarget()
+        private void Animate(Vector2 input)
         {
-            Vector3 current = transform.position;
-            Vector3 delta = targetPosition - current;
+            bool isMoving = input.sqrMagnitude >= 0.0025f;
+            Sprite[] frames = isMoving && walkFrames != null && walkFrames.Length > 0 ? walkFrames : idleFrames;
 
-            if (delta.magnitude <= stopDistance)
+            if (frames == null || frames.Length == 0)
             {
                 return;
             }
 
-            Vector3 next = Vector3.MoveTowards(current, targetPosition, moveSpeed * Time.deltaTime);
-            transform.position = next;
-
-            if (spriteRenderer != null && Mathf.Abs(delta.x) > 0.01f)
+            if (isMoving != wasMoving)
             {
-                spriteRenderer.flipX = delta.x < 0f;
+                wasMoving = isMoving;
+                animationTime = 0f;
             }
+
+            float framesPerSecond = isMoving ? walkFramesPerSecond : idleFramesPerSecond;
+            animationTime += Time.deltaTime * framesPerSecond;
+            int frameIndex = Mathf.FloorToInt(animationTime) % frames.Length;
+            ApplyFrame(frames, frameIndex);
+        }
+
+        private void ApplyFrame(Sprite[] frames, int index)
+        {
+            if (spriteRenderer == null || frames == null || frames.Length == 0)
+            {
+                return;
+            }
+
+            spriteRenderer.sprite = frames[Mathf.Clamp(index, 0, frames.Length - 1)];
         }
 
         private void TryCollectNearbyResource()
         {
-            DreamyResourceNode[] nodes = FindObjectsByType<DreamyResourceNode>(FindObjectsSortMode.None);
+            DreamyResourceNode[] nodes = FindObjectsByType<DreamyResourceNode>(FindObjectsInactive.Exclude);
             for (int i = 0; i < nodes.Length; i++)
             {
                 nodes[i].TryCollect(transform);
