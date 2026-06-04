@@ -1,0 +1,15 @@
+* text=auto
+
+*.asset text eol=lf
+*.controller text eol=lf
+*.mat text eol=lf
+*.meta text eol=lf
+*.prefab text eol=lf
+*.unity text eol=lf
+
+*.aseprite binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.psd binary
+*.tga binary
