@@ -8,8 +8,9 @@ namespace Dreamy
     public sealed class DreamyMobilePlayer : MonoBehaviour
     {
         private const int RuntimeSortingOrder = 11;
+        public const float DefaultMoveSpeed = 4.2f;
 
-        [SerializeField] private float moveSpeed = 4.2f;
+        [SerializeField] private float moveSpeed = DefaultMoveSpeed;
         [SerializeField] private DreamyVirtualJoystick joystick;
         [SerializeField] private Vector2 minBounds = new Vector2(-3.3f, -5.2f);
         [SerializeField] private Vector2 maxBounds = new Vector2(3.3f, 5.2f);
@@ -23,6 +24,12 @@ namespace Dreamy
         private Vector2 movementInput;
         private Rigidbody2D rigidbody2d;
         private SpriteRenderer spriteRenderer;
+
+        public float MoveSpeed
+        {
+            get => moveSpeed;
+            set => moveSpeed = Mathf.Max(0f, value);
+        }
 
         private void Awake()
         {
@@ -75,6 +82,11 @@ namespace Dreamy
         {
             minBounds = minimum;
             maxBounds = maximum;
+        }
+
+        private void OnValidate()
+        {
+            moveSpeed = Mathf.Max(0f, moveSpeed);
         }
 
         private Vector2 ReadMovementInput()

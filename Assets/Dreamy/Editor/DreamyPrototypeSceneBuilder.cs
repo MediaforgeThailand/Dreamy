@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using Dreamy;
 using UnityEditor;
@@ -14,10 +15,33 @@ namespace Dreamy.Editor
     {
         private const string ScenePath = "Assets/Dreamy/Scenes/DreamyMobilePrototype.unity";
         private const string GeneratedAssetFolder = "Assets/Dreamy/Generated";
+        private const string FirstSceneMapPath = "Assets/Dreamy/Maps/FirstScene/FirstSceneMap.png";
+        private const string FirstSceneBlockedMarkupPath = "Assets/Dreamy/Maps/FirstScene/FirstSceneBlockedMarkup.png";
         private const string ImportedMapPrefabPath = "Assets/Spritefusion/Maps/map.prefab";
+        private const float PaintedMapPixelsPerUnit = 100f;
+        private const int MarkupCollisionCellPixels = 96;
+        private const int MarkupCollisionSampleStepPixels = 4;
+        private const int MarkupCollisionMinimumBlueSamples = 10;
+        private const int MarkupCollisionDilationCells = 1;
         private const float TileWorldSize = 0.64f;
         private static readonly Vector2 FallbackPlayerMinBounds = new Vector2(-3.2f, -5.0f);
         private static readonly Vector2 FallbackPlayerMaxBounds = new Vector2(3.2f, 5.0f);
+
+        private readonly struct GridRect
+        {
+            public GridRect(int x, int y, int width, int height)
+            {
+                X = x;
+                Y = y;
+                Width = width;
+                Height = height;
+            }
+
+            public int X { get; }
+            public int Y { get; }
+            public int Width { get; }
+            public int Height { get; }
+        }
 
         [MenuItem("Dreamy/Build Mobile Prototype Scene")]
         public static void BuildMobilePrototypeScene()
@@ -39,6 +63,7 @@ namespace Dreamy.Editor
 
             GameObject systems = new GameObject("Game Systems");
             systems.AddComponent<DreamyGameState>();
+            systems.AddComponent<DreamyMobileOrientation>();
 
             Camera camera = CreateCamera();
             DreamyVirtualJoystick joystick = CreateHud();
@@ -56,6 +81,12 @@ namespace Dreamy.Editor
             Debug.Log("[Dreamy] Mobile prototype scene built at " + ScenePath);
         }
 
+        [MenuItem("Dreamy/Build First Scene Map")]
+        public static void BuildFirstSceneMap()
+        {
+            BuildMobilePrototypeScene();
+        }
+
         private static void EnsureFolders()
         {
             CreateFolder("Assets", "Dreamy");
@@ -63,6 +94,8 @@ namespace Dreamy.Editor
             CreateFolder("Assets/Dreamy", "Scripts");
             CreateFolder("Assets/Dreamy", "Editor");
             CreateFolder("Assets/Dreamy", "Generated");
+            CreateFolder("Assets/Dreamy", "Maps");
+            CreateFolder("Assets/Dreamy/Maps", "FirstScene");
         }
 
         private static void CreateFolder(string parent, string child)
@@ -78,11 +111,11 @@ namespace Dreamy.Editor
         {
             PlayerSettings.companyName = "Mediaforge Thailand";
             PlayerSettings.productName = "Dreamy";
-            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
-            PlayerSettings.allowedAutorotateToPortrait = true;
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
+            PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
-            PlayerSettings.allowedAutorotateToLandscapeLeft = false;
-            PlayerSettings.allowedAutorotateToLandscapeRight = false;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = true;
+            PlayerSettings.allowedAutorotateToLandscapeRight = true;
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel25;
         }
 
@@ -106,33 +139,272 @@ namespace Dreamy.Editor
             GameObject levelRoot = new GameObject("Level Root");
             levelRoot.transform.SetParent(world.transform);
 
-            bool usingImportedMap = CreateImportedMap(levelRoot.transform, out Bounds mapBounds);
+            bool usingPaintedMap = CreatePaintedFirstSceneMap(levelRoot.transform, out Bounds mapBounds);
+            bool usingImportedMap = false;
             Vector2 playerStart = new Vector2(0f, -0.5f);
             Vector2 playerMinBounds = FallbackPlayerMinBounds;
             Vector2 playerMaxBounds = FallbackPlayerMaxBounds;
 
-            if (usingImportedMap)
+            if (usingPaintedMap)
+            {
+                playerStart = new Vector2(-1.2f, -0.4f);
+                playerMinBounds = new Vector2(mapBounds.min.x + 0.8f, mapBounds.min.y + 0.8f);
+                playerMaxBounds = new Vector2(mapBounds.max.x - 0.8f, mapBounds.max.y - 0.8f);
+            }
+            else
+            {
+                usingImportedMap = CreateImportedMap(levelRoot.transform, out mapBounds);
+            }
+
+            if (!usingPaintedMap && usingImportedMap)
             {
                 playerStart = mapBounds.center;
                 playerMinBounds = new Vector2(mapBounds.min.x + 0.4f, mapBounds.min.y + 0.4f);
                 playerMaxBounds = new Vector2(mapBounds.max.x - 0.4f, mapBounds.max.y - 0.4f);
             }
-            else
+            else if (!usingPaintedMap)
             {
                 CreateWaterBorder(levelRoot.transform);
                 CreateGroundGrid(levelRoot.transform);
                 CreateLevelDecorations(levelRoot.transform);
             }
 
-            CreateResource(levelRoot.transform, "Wood Node", DreamyResourceType.Wood, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Wood/Trees/Tree1.png", playerStart + new Vector2(-2.35f, 2.55f), 0.72f);
-            CreateResource(levelRoot.transform, "Gold Node", DreamyResourceType.Gold, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Resource/Gold_Resource.png", playerStart + new Vector2(2.35f, 1.45f), 0.78f);
-            CreateResource(levelRoot.transform, "Food Node", DreamyResourceType.Food, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Meat/Meat Resource/Meat Resource.png", playerStart + new Vector2(-0.1f, -3.35f), 0.78f);
+            if (!usingPaintedMap)
+            {
+                CreateResource(levelRoot.transform, "Wood Node", DreamyResourceType.Wood, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Wood/Trees/Tree1.png", playerStart + new Vector2(-2.35f, 2.55f), 0.72f);
+                CreateResource(levelRoot.transform, "Gold Node", DreamyResourceType.Gold, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Resource/Gold_Resource.png", playerStart + new Vector2(2.35f, 1.45f), 0.78f);
+                CreateResource(levelRoot.transform, "Food Node", DreamyResourceType.Food, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Meat/Meat Resource/Meat Resource.png", playerStart + new Vector2(-0.1f, -3.35f), 0.78f);
+            }
 
             GameObject player = CreatePlayer(world.transform, joystick, idleFrames, walkFrames, playerStart, playerMinBounds, playerMaxBounds);
             DreamyCameraFollow follow = camera.GetComponent<DreamyCameraFollow>();
+            if (usingPaintedMap)
+            {
+                camera.orthographicSize = 5.6f;
+                follow.Configure(5.6f, false, false, 0.16f, 115f);
+            }
+
             follow.Target = player.transform;
             follow.SetBounds(playerMinBounds, playerMaxBounds);
             camera.transform.position = new Vector3(playerStart.x, playerStart.y, camera.transform.position.z);
+        }
+
+        private static bool CreatePaintedFirstSceneMap(Transform parent, out Bounds mapBounds)
+        {
+            mapBounds = new Bounds(Vector3.zero, Vector3.zero);
+            if (!File.Exists(ToAbsolutePath(FirstSceneMapPath)))
+            {
+                return false;
+            }
+
+            ImportPaintedMapSprite(FirstSceneMapPath, PaintedMapPixelsPerUnit);
+            ImportMarkupTexture(FirstSceneBlockedMarkupPath);
+
+            Sprite mapSprite = AssetDatabase.LoadAssetAtPath<Sprite>(FirstSceneMapPath);
+            if (mapSprite == null)
+            {
+                Debug.LogWarning("[Dreamy] Could not load painted first-scene map: " + FirstSceneMapPath);
+                return false;
+            }
+
+            GameObject map = new GameObject("First Scene Painted Map");
+            map.transform.SetParent(parent, false);
+            SpriteRenderer renderer = map.AddComponent<SpriteRenderer>();
+            renderer.sprite = mapSprite;
+            renderer.sortingOrder = -100;
+
+            mapBounds = renderer.bounds;
+            CreateMarkupCollision(parent);
+            Debug.Log("[Dreamy] Using painted first scene map at " + FirstSceneMapPath + " with size " + mapBounds.size);
+            return true;
+        }
+
+        private static void CreateMarkupCollision(Transform parent)
+        {
+            if (!File.Exists(ToAbsolutePath(FirstSceneBlockedMarkupPath)))
+            {
+                Debug.LogWarning("[Dreamy] Missing blocked-area markup: " + FirstSceneBlockedMarkupPath);
+                return;
+            }
+
+            Texture2D markup = LoadTextureFromProject(FirstSceneBlockedMarkupPath);
+            if (markup == null)
+            {
+                return;
+            }
+
+            List<GridRect> blockedRects = BuildBlockedRectsFromMarkup(markup);
+            GameObject blockerRoot = new GameObject("Non Walkable Markup Colliders");
+            blockerRoot.transform.SetParent(parent, false);
+            blockerRoot.isStatic = true;
+
+            for (int i = 0; i < blockedRects.Count; i++)
+            {
+                GridRect rect = blockedRects[i];
+                GameObject blocker = new GameObject($"Blocked Area {i + 1:00}");
+                blocker.transform.SetParent(blockerRoot.transform, false);
+                blocker.isStatic = true;
+
+                float pixelMinX = rect.X * MarkupCollisionCellPixels;
+                float pixelMinY = rect.Y * MarkupCollisionCellPixels;
+                float pixelWidth = rect.Width * MarkupCollisionCellPixels;
+                float pixelHeight = rect.Height * MarkupCollisionCellPixels;
+
+                float centerX = (pixelMinX + pixelWidth * 0.5f - markup.width * 0.5f) / PaintedMapPixelsPerUnit;
+                float centerY = (pixelMinY + pixelHeight * 0.5f - markup.height * 0.5f) / PaintedMapPixelsPerUnit;
+                blocker.transform.localPosition = new Vector3(centerX, centerY, 0f);
+
+                BoxCollider2D collider = blocker.AddComponent<BoxCollider2D>();
+                collider.size = new Vector2(pixelWidth / PaintedMapPixelsPerUnit, pixelHeight / PaintedMapPixelsPerUnit);
+                collider.isTrigger = false;
+            }
+
+            UnityEngine.Object.DestroyImmediate(markup);
+            Debug.Log($"[Dreamy] Created {blockedRects.Count} non-walkable colliders from {FirstSceneBlockedMarkupPath}");
+        }
+
+        private static List<GridRect> BuildBlockedRectsFromMarkup(Texture2D markup)
+        {
+            int columns = Mathf.CeilToInt(markup.width / (float)MarkupCollisionCellPixels);
+            int rows = Mathf.CeilToInt(markup.height / (float)MarkupCollisionCellPixels);
+            bool[,] blockedCells = new bool[columns, rows];
+            Color32[] pixels = markup.GetPixels32();
+
+            for (int y = 0; y < rows; y++)
+            {
+                for (int x = 0; x < columns; x++)
+                {
+                    int blueSamples = CountBlueMarkupSamples(pixels, markup.width, markup.height, x, y);
+                    blockedCells[x, y] = blueSamples >= MarkupCollisionMinimumBlueSamples;
+                }
+            }
+
+            blockedCells = DilateBlockedCells(blockedCells, columns, rows, MarkupCollisionDilationCells);
+            return MergeBlockedCells(blockedCells, columns, rows);
+        }
+
+        private static int CountBlueMarkupSamples(Color32[] pixels, int textureWidth, int textureHeight, int cellX, int cellY)
+        {
+            int startX = cellX * MarkupCollisionCellPixels;
+            int startY = cellY * MarkupCollisionCellPixels;
+            int endX = Mathf.Min(startX + MarkupCollisionCellPixels, textureWidth);
+            int endY = Mathf.Min(startY + MarkupCollisionCellPixels, textureHeight);
+            int blueSamples = 0;
+
+            for (int y = startY; y < endY; y += MarkupCollisionSampleStepPixels)
+            {
+                int rowOffset = y * textureWidth;
+                for (int x = startX; x < endX; x += MarkupCollisionSampleStepPixels)
+                {
+                    if (IsMarkupBlue(pixels[rowOffset + x]))
+                    {
+                        blueSamples++;
+                    }
+                }
+            }
+
+            return blueSamples;
+        }
+
+        private static bool IsMarkupBlue(Color32 pixel)
+        {
+            return pixel.a > 64
+                && pixel.r < 80
+                && pixel.g > 70
+                && pixel.g < 170
+                && pixel.b > 170
+                && pixel.b - pixel.g > 35
+                && pixel.b - pixel.r > 110;
+        }
+
+        private static bool[,] DilateBlockedCells(bool[,] source, int columns, int rows, int iterations)
+        {
+            bool[,] result = source;
+            for (int iteration = 0; iteration < iterations; iteration++)
+            {
+                bool[,] expanded = new bool[columns, rows];
+                for (int y = 0; y < rows; y++)
+                {
+                    for (int x = 0; x < columns; x++)
+                    {
+                        if (!result[x, y])
+                        {
+                            continue;
+                        }
+
+                        for (int offsetY = -1; offsetY <= 1; offsetY++)
+                        {
+                            for (int offsetX = -1; offsetX <= 1; offsetX++)
+                            {
+                                int targetX = x + offsetX;
+                                int targetY = y + offsetY;
+                                if (targetX >= 0 && targetX < columns && targetY >= 0 && targetY < rows)
+                                {
+                                    expanded[targetX, targetY] = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                result = expanded;
+            }
+
+            return result;
+        }
+
+        private static List<GridRect> MergeBlockedCells(bool[,] blockedCells, int columns, int rows)
+        {
+            List<GridRect> rects = new List<GridRect>();
+            bool[,] used = new bool[columns, rows];
+
+            for (int y = 0; y < rows; y++)
+            {
+                for (int x = 0; x < columns; x++)
+                {
+                    if (!blockedCells[x, y] || used[x, y])
+                    {
+                        continue;
+                    }
+
+                    int width = 1;
+                    while (x + width < columns && blockedCells[x + width, y] && !used[x + width, y])
+                    {
+                        width++;
+                    }
+
+                    int height = 1;
+                    bool canGrow = true;
+                    while (y + height < rows && canGrow)
+                    {
+                        for (int testX = x; testX < x + width; testX++)
+                        {
+                            if (!blockedCells[testX, y + height] || used[testX, y + height])
+                            {
+                                canGrow = false;
+                                break;
+                            }
+                        }
+
+                        if (canGrow)
+                        {
+                            height++;
+                        }
+                    }
+
+                    for (int markY = y; markY < y + height; markY++)
+                    {
+                        for (int markX = x; markX < x + width; markX++)
+                        {
+                            used[markX, markY] = true;
+                        }
+                    }
+
+                    rects.Add(new GridRect(x, y, width, height));
+                }
+            }
+
+            return rects;
         }
 
         private static bool CreateImportedMap(Transform parent, out Bounds mapBounds)
@@ -372,11 +644,12 @@ namespace Dreamy.Editor
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080f, 1920f);
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
             canvasObject.AddComponent<GraphicRaycaster>();
             canvasObject.AddComponent<DreamySafeArea>();
 
-            GameObject topBar = CreatePanel(canvasObject.transform, "Resource Bar", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -92f));
+            GameObject topBar = CreatePanel(canvasObject.transform, "Resource Bar", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -60f));
             Text wood = CreateText(topBar.transform, "Wood Text", "Wood 0", new Vector2(0.18f, 0.5f));
             Text gold = CreateText(topBar.transform, "Gold Text", "Gold 0", new Vector2(0.50f, 0.5f));
             Text food = CreateText(topBar.transform, "Food Text", "Food 0", new Vector2(0.82f, 0.5f));
@@ -432,8 +705,8 @@ namespace Dreamy.Editor
             rootRect.anchorMin = new Vector2(0f, 0f);
             rootRect.anchorMax = new Vector2(0f, 0f);
             rootRect.pivot = new Vector2(0.5f, 0.5f);
-            rootRect.anchoredPosition = new Vector2(190f, 210f);
-            rootRect.sizeDelta = new Vector2(250f, 250f);
+            rootRect.anchoredPosition = new Vector2(170f, 155f);
+            rootRect.sizeDelta = new Vector2(220f, 220f);
 
             GameObject handle = new GameObject("Joystick Handle");
             handle.transform.SetParent(joystickRoot.transform, false);
@@ -447,10 +720,10 @@ namespace Dreamy.Editor
             handleRect.anchorMax = new Vector2(0.5f, 0.5f);
             handleRect.pivot = new Vector2(0.5f, 0.5f);
             handleRect.anchoredPosition = Vector2.zero;
-            handleRect.sizeDelta = new Vector2(104f, 104f);
+            handleRect.sizeDelta = new Vector2(92f, 92f);
 
             DreamyVirtualJoystick joystick = joystickRoot.AddComponent<DreamyVirtualJoystick>();
-            joystick.Bind(handleRect, 92f);
+            joystick.Bind(handleRect, 82f);
             return joystick;
         }
 
@@ -466,7 +739,7 @@ namespace Dreamy.Editor
             rect.anchorMax = anchorMax;
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = new Vector2(0f, 92f);
+            rect.sizeDelta = new Vector2(0f, 76f);
             return panel;
         }
 
@@ -477,7 +750,7 @@ namespace Dreamy.Editor
             Text text = textObject.AddComponent<Text>();
             text.text = value;
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 38;
+            text.fontSize = 32;
             text.alignment = TextAnchor.MiddleCenter;
             text.color = Color.white;
 
@@ -486,7 +759,7 @@ namespace Dreamy.Editor
             rect.anchorMax = anchor;
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = new Vector2(340f, 72f);
+            rect.sizeDelta = new Vector2(320f, 60f);
             return text;
         }
 
@@ -576,6 +849,121 @@ namespace Dreamy.Editor
             }
 
             return sprite;
+        }
+
+        private static void ImportPaintedMapSprite(string path, float pixelsPerUnit)
+        {
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
+            TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer == null)
+            {
+                return;
+            }
+
+            bool changed = false;
+            if (importer.textureType != TextureImporterType.Sprite)
+            {
+                importer.textureType = TextureImporterType.Sprite;
+                changed = true;
+            }
+
+            if (importer.spriteImportMode != SpriteImportMode.Single)
+            {
+                importer.spriteImportMode = SpriteImportMode.Single;
+                changed = true;
+            }
+
+            if (!Mathf.Approximately(importer.spritePixelsPerUnit, pixelsPerUnit))
+            {
+                importer.spritePixelsPerUnit = pixelsPerUnit;
+                changed = true;
+            }
+
+            if (importer.mipmapEnabled)
+            {
+                importer.mipmapEnabled = false;
+                changed = true;
+            }
+
+            if (importer.filterMode != FilterMode.Bilinear)
+            {
+                importer.filterMode = FilterMode.Bilinear;
+                changed = true;
+            }
+
+            if (importer.wrapMode != TextureWrapMode.Clamp)
+            {
+                importer.wrapMode = TextureWrapMode.Clamp;
+                changed = true;
+            }
+
+            if (importer.maxTextureSize != 4096)
+            {
+                importer.maxTextureSize = 4096;
+                changed = true;
+            }
+
+            if (importer.textureCompression != TextureImporterCompression.Uncompressed)
+            {
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                importer.SaveAndReimport();
+            }
+        }
+
+        private static void ImportMarkupTexture(string path)
+        {
+            if (!File.Exists(ToAbsolutePath(path)))
+            {
+                return;
+            }
+
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
+            TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer == null)
+            {
+                return;
+            }
+
+            bool changed = false;
+            if (importer.textureType != TextureImporterType.Default)
+            {
+                importer.textureType = TextureImporterType.Default;
+                changed = true;
+            }
+
+            if (!importer.isReadable)
+            {
+                importer.isReadable = true;
+                changed = true;
+            }
+
+            if (importer.mipmapEnabled)
+            {
+                importer.mipmapEnabled = false;
+                changed = true;
+            }
+
+            if (importer.filterMode != FilterMode.Point)
+            {
+                importer.filterMode = FilterMode.Point;
+                changed = true;
+            }
+
+            if (importer.textureCompression != TextureImporterCompression.Uncompressed)
+            {
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                importer.SaveAndReimport();
+            }
         }
 
         private static void ImportSprite(string path, float pixelsPerUnit)

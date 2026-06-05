@@ -1,0 +1,124 @@
+{
+  "id": "dreamy-connected-level-2",
+  "version": 1,
+  "purpose": "Two connected top-down mobile RPG levels built from Tiny Swords-style tile roles.",
+  "tileSizePixels": 64,
+  "pixelsPerUnit": 64,
+  "grid": {
+    "width": 36,
+    "height": 18,
+    "origin": "bottom-left",
+    "connectorColumn": 17
+  },
+  "zones": [
+    {
+      "zoneId": "level_1_beach_approach",
+      "displayName": "Beach Approach",
+      "bounds": { "x": 0, "y": 0, "width": 17, "height": 18 },
+      "defaultElevationLevel": 0,
+      "primaryGround": "Sand",
+      "border": "Background",
+      "mainPath": {
+        "role": "FlatGround",
+        "from": { "x": 3, "y": 8 },
+        "to": { "x": 16, "y": 8 },
+        "width": 3
+      },
+      "requiredTileRoles": [
+        "BackgroundWater",
+        "WaterFoam",
+        "FlatGround",
+        "Bridge",
+        "Blocker"
+      ],
+      "gameplay": {
+        "entryPoint": { "x": 3, "y": 8 },
+        "resources": [
+          { "type": "Wood", "position": { "x": 8, "y": 12 } },
+          { "type": "Food", "position": { "x": 6, "y": 5 } }
+        ],
+        "blockers": [
+          { "role": "Rocks", "position": { "x": 11, "y": 4 } },
+          { "role": "Trees front", "position": { "x": 12, "y": 13 } }
+        ]
+      }
+    },
+    {
+      "zoneId": "level_2_forest_ruins",
+      "displayName": "Forest Ruins",
+      "bounds": { "x": 18, "y": 0, "width": 18, "height": 18 },
+      "defaultElevationLevel": 1,
+      "primaryGround": "Grass",
+      "mainPath": {
+        "role": "ElevatedGround",
+        "from": { "x": 18, "y": 8 },
+        "to": { "x": 31, "y": 8 },
+        "width": 3
+      },
+      "objectiveArea": {
+        "role": "RuinFloor",
+        "bounds": { "x": 27, "y": 6, "width": 6, "height": 5 }
+      },
+      "requiredTileRoles": [
+        "ElevatedGround",
+        "Shadow",
+        "Cliff",
+        "Stairs",
+        "Blocker",
+        "Decoration"
+      ],
+      "gameplay": {
+        "entryPoint": { "x": 19, "y": 8 },
+        "objective": { "type": "AncientGate", "position": { "x": 30, "y": 8 } },
+        "resources": [
+          { "type": "Gold", "position": { "x": 25, "y": 12 } },
+          { "type": "Wood", "position": { "x": 23, "y": 5 } }
+        ],
+        "blockers": [
+          { "role": "Trees front", "position": { "x": 21, "y": 13 } },
+          { "role": "Rocks", "position": { "x": 28, "y": 4 } }
+        ]
+      }
+    }
+  ],
+  "connectors": [
+    {
+      "connectorId": "beach_to_forest_stairs",
+      "type": "Stairs",
+      "fromZone": "level_1_beach_approach",
+      "toZone": "level_2_forest_ruins",
+      "fromElevationLevel": 0,
+      "toElevationLevel": 1,
+      "positions": [
+        { "x": 16, "y": 7 },
+        { "x": 17, "y": 8 },
+        { "x": 18, "y": 9 }
+      ],
+      "walkable": true,
+      "blocksMovement": false
+    }
+  ],
+  "pixellabJob": {
+    "tool": "create_tiles_pro",
+    "tileId": "c167523e-7101-484a-a358-e14c42bf6c24",
+    "status": "processing",
+    "styleReferences": [
+      "Background",
+      "Sand",
+      "Grass",
+      "Stairs",
+      "Bridge - horizontal",
+      "Buildings",
+      "Rocks"
+    ]
+  },
+  "pixellabConceptMap": {
+    "tool": "create_map_object",
+    "objectId": "efca042b-0a67-4734-8d8f-d1e1cea49009",
+    "status": "completed",
+    "mode": "style-match rect 95%",
+    "sizePixels": { "width": 192, "height": 192 },
+    "generatedAssetPath": "Assets/Dreamy/Generated/PixelLab/ConnectedLevel2_MapConcept.png",
+    "sourceReferenceSheet": "Temp_PixelLabRefs/style_reference_sheet_192.png"
+  }
+}
