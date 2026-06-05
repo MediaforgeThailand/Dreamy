@@ -5,6 +5,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
 using UnityEngine.UI;
 
 namespace Dreamy.Editor
@@ -13,9 +14,10 @@ namespace Dreamy.Editor
     {
         private const string ScenePath = "Assets/Dreamy/Scenes/DreamyMobilePrototype.unity";
         private const string GeneratedAssetFolder = "Assets/Dreamy/Generated";
+        private const string ImportedMapPrefabPath = "Assets/Spritefusion/Maps/map.prefab";
         private const float TileWorldSize = 0.64f;
-        private static readonly Vector2 PlayerMinBounds = new Vector2(-3.2f, -5.0f);
-        private static readonly Vector2 PlayerMaxBounds = new Vector2(3.2f, 5.0f);
+        private static readonly Vector2 FallbackPlayerMinBounds = new Vector2(-3.2f, -5.0f);
+        private static readonly Vector2 FallbackPlayerMaxBounds = new Vector2(3.2f, 5.0f);
 
         [MenuItem("Dreamy/Build Mobile Prototype Scene")]
         public static void BuildMobilePrototypeScene()
@@ -92,7 +94,7 @@ namespace Dreamy.Editor
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.39f, 0.62f, 0.72f);
             camera.orthographic = true;
-            camera.orthographicSize = 5.9f;
+            camera.orthographicSize = 8f;
             camera.transform.position = new Vector3(0f, 0f, -10f);
             cameraObject.AddComponent<DreamyCameraFollow>();
             return camera;
@@ -104,17 +106,111 @@ namespace Dreamy.Editor
             GameObject levelRoot = new GameObject("Level Root");
             levelRoot.transform.SetParent(world.transform);
 
-            CreateWaterBorder(levelRoot.transform);
-            CreateGroundGrid(levelRoot.transform);
-            CreateLevelDecorations(levelRoot.transform);
+            bool usingImportedMap = CreateImportedMap(levelRoot.transform, out Bounds mapBounds);
+            Vector2 playerStart = new Vector2(0f, -0.5f);
+            Vector2 playerMinBounds = FallbackPlayerMinBounds;
+            Vector2 playerMaxBounds = FallbackPlayerMaxBounds;
 
-            CreateResource(levelRoot.transform, "Wood Node", DreamyResourceType.Wood, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Wood/Trees/Tree1.png", new Vector2(-2.35f, 2.55f), 0.72f);
-            CreateResource(levelRoot.transform, "Gold Node", DreamyResourceType.Gold, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Resource/Gold_Resource.png", new Vector2(2.35f, 1.45f), 0.78f);
-            CreateResource(levelRoot.transform, "Food Node", DreamyResourceType.Food, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Meat/Meat Resource/Meat Resource.png", new Vector2(-0.1f, -3.35f), 0.78f);
+            if (usingImportedMap)
+            {
+                playerStart = mapBounds.center;
+                playerMinBounds = new Vector2(mapBounds.min.x + 0.4f, mapBounds.min.y + 0.4f);
+                playerMaxBounds = new Vector2(mapBounds.max.x - 0.4f, mapBounds.max.y - 0.4f);
+            }
+            else
+            {
+                CreateWaterBorder(levelRoot.transform);
+                CreateGroundGrid(levelRoot.transform);
+                CreateLevelDecorations(levelRoot.transform);
+            }
 
-            GameObject player = CreatePlayer(world.transform, joystick, idleFrames, walkFrames);
+            CreateResource(levelRoot.transform, "Wood Node", DreamyResourceType.Wood, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Wood/Trees/Tree1.png", playerStart + new Vector2(-2.35f, 2.55f), 0.72f);
+            CreateResource(levelRoot.transform, "Gold Node", DreamyResourceType.Gold, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Resource/Gold_Resource.png", playerStart + new Vector2(2.35f, 1.45f), 0.78f);
+            CreateResource(levelRoot.transform, "Food Node", DreamyResourceType.Food, "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Meat/Meat Resource/Meat Resource.png", playerStart + new Vector2(-0.1f, -3.35f), 0.78f);
+
+            GameObject player = CreatePlayer(world.transform, joystick, idleFrames, walkFrames, playerStart, playerMinBounds, playerMaxBounds);
             DreamyCameraFollow follow = camera.GetComponent<DreamyCameraFollow>();
             follow.Target = player.transform;
+            follow.SetBounds(playerMinBounds, playerMaxBounds);
+            camera.transform.position = new Vector3(playerStart.x, playerStart.y, camera.transform.position.z);
+        }
+
+        private static bool CreateImportedMap(Transform parent, out Bounds mapBounds)
+        {
+            mapBounds = new Bounds(Vector3.zero, Vector3.zero);
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(ImportedMapPrefabPath);
+            if (prefab == null)
+            {
+                return false;
+            }
+
+            GameObject map = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+            if (map == null)
+            {
+                Debug.LogWarning("[Dreamy] Could not instantiate imported map prefab: " + ImportedMapPrefabPath);
+                return false;
+            }
+
+            map.name = "Spritefusion Imported Map";
+            map.transform.SetParent(parent, false);
+            map.transform.localPosition = Vector3.zero;
+            map.transform.localRotation = Quaternion.identity;
+            map.transform.localScale = Vector3.one;
+            PrepareImportedMapForRuntime(map);
+
+            mapBounds = CalculateRendererBounds(map);
+            if (mapBounds.size == Vector3.zero)
+            {
+                Debug.LogWarning("[Dreamy] Imported map has no renderer bounds: " + ImportedMapPrefabPath);
+                return true;
+            }
+
+            Vector3 offset = -mapBounds.center;
+            map.transform.position += offset;
+            mapBounds.center += offset;
+            Debug.Log("[Dreamy] Using imported Spritefusion map at " + ImportedMapPrefabPath + " with size " + mapBounds.size);
+            return true;
+        }
+
+        private static void PrepareImportedMapForRuntime(GameObject map)
+        {
+            TilemapRenderer[] tilemapRenderers = map.GetComponentsInChildren<TilemapRenderer>();
+            for (int i = 0; i < tilemapRenderers.Length; i++)
+            {
+                tilemapRenderers[i].mode = TilemapRenderer.Mode.Individual;
+            }
+
+            TilemapCollider2D[] tilemapColliders = map.GetComponentsInChildren<TilemapCollider2D>();
+            for (int i = 0; i < tilemapColliders.Length; i++)
+            {
+                bool shouldBlockMovement = DreamyLevelTileRules.LayerBlocksMovement(tilemapColliders[i].gameObject.name);
+                tilemapColliders[i].enabled = shouldBlockMovement;
+                tilemapColliders[i].isTrigger = false;
+
+                CompositeCollider2D composite = tilemapColliders[i].GetComponent<CompositeCollider2D>();
+                if (composite != null)
+                {
+                    composite.enabled = shouldBlockMovement;
+                    composite.isTrigger = false;
+                }
+            }
+        }
+
+        private static Bounds CalculateRendererBounds(GameObject root)
+        {
+            Renderer[] renderers = root.GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0)
+            {
+                return new Bounds(root.transform.position, Vector3.zero);
+            }
+
+            Bounds bounds = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+            {
+                bounds.Encapsulate(renderers[i].bounds);
+            }
+
+            return bounds;
         }
 
         private static void CreateWaterBorder(Transform parent)
@@ -181,23 +277,23 @@ namespace Dreamy.Editor
             CreateDecoration(parent, "Sheep", "Assets/Tiny Swords (Free Pack)/Terrain/Resources/Meat/Sheep/Sheep_Idle.png", new Vector2(2.45f, -3.1f), 0.6f);
         }
 
-        private static GameObject CreatePlayer(Transform parent, DreamyVirtualJoystick joystick, Sprite[] idleFrames, Sprite[] walkFrames)
+        private static GameObject CreatePlayer(Transform parent, DreamyVirtualJoystick joystick, Sprite[] idleFrames, Sprite[] walkFrames, Vector2 startPosition, Vector2 minBounds, Vector2 maxBounds)
         {
             GameObject player = new GameObject("Player Pawn");
             player.transform.SetParent(parent);
-            player.transform.position = new Vector3(0f, -0.5f, 0f);
-            player.transform.localScale = Vector3.one * 0.82f;
+            player.transform.position = new Vector3(startPosition.x, startPosition.y, 0f);
+            player.transform.localScale = Vector3.one;
 
             SpriteRenderer renderer = player.AddComponent<SpriteRenderer>();
             renderer.sprite = idleFrames != null && idleFrames.Length > 0 ? idleFrames[0] : null;
-            renderer.sortingOrder = 100;
+            renderer.sortingOrder = 11;
 
             CircleCollider2D collider = player.AddComponent<CircleCollider2D>();
             collider.radius = 0.32f;
 
             DreamyMobilePlayer controller = player.AddComponent<DreamyMobilePlayer>();
             controller.Bind(joystick, idleFrames, walkFrames);
-            controller.SetMovementBounds(PlayerMinBounds, PlayerMaxBounds);
+            controller.SetMovementBounds(minBounds, maxBounds);
             return player;
         }
 

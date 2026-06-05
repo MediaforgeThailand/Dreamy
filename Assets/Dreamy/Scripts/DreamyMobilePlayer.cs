@@ -1,10 +1,14 @@
 using UnityEngine;
+using UnityEngine.Tilemaps;
 
 namespace Dreamy
 {
     [RequireComponent(typeof(SpriteRenderer))]
+    [RequireComponent(typeof(Rigidbody2D))]
     public sealed class DreamyMobilePlayer : MonoBehaviour
     {
+        private const int RuntimeSortingOrder = 11;
+
         [SerializeField] private float moveSpeed = 4.2f;
         [SerializeField] private DreamyVirtualJoystick joystick;
         [SerializeField] private Vector2 minBounds = new Vector2(-3.3f, -5.2f);
@@ -16,20 +20,47 @@ namespace Dreamy
 
         private bool wasMoving;
         private float animationTime;
+        private Vector2 movementInput;
+        private Rigidbody2D rigidbody2d;
         private SpriteRenderer spriteRenderer;
 
         private void Awake()
         {
             spriteRenderer = GetComponent<SpriteRenderer>();
+            rigidbody2d = GetComponent<Rigidbody2D>();
+            if (rigidbody2d == null)
+            {
+                rigidbody2d = gameObject.AddComponent<Rigidbody2D>();
+            }
+
+            if (spriteRenderer != null && spriteRenderer.sortingOrder >= 100)
+            {
+                spriteRenderer.sortingOrder = RuntimeSortingOrder;
+            }
+
+            transform.localScale = Vector3.one;
+            rigidbody2d.gravityScale = 0f;
+            rigidbody2d.freezeRotation = true;
+            rigidbody2d.interpolation = RigidbodyInterpolation2D.Interpolate;
+            rigidbody2d.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             ApplyFrame(idleFrames, 0);
         }
 
         private void Update()
         {
-            Vector2 input = ReadMovementInput();
-            Move(input);
-            Animate(input);
+            movementInput = ReadMovementInput();
+            Animate(movementInput);
             TryCollectNearbyResource();
+        }
+
+        private void Start()
+        {
+            ConfigureImportedMapColliders();
+        }
+
+        private void FixedUpdate()
+        {
+            Move(movementInput);
         }
 
         public void Bind(DreamyVirtualJoystick movementJoystick, Sprite[] idleSprites, Sprite[] walkSprites)
@@ -65,11 +96,19 @@ namespace Dreamy
                 return;
             }
 
-            Vector3 current = transform.position;
-            Vector3 next = current + new Vector3(input.x, input.y, 0f) * (moveSpeed * Time.deltaTime);
+            Vector2 current = rigidbody2d != null ? rigidbody2d.position : (Vector2)transform.position;
+            Vector2 next = current + input * (moveSpeed * Time.fixedDeltaTime);
             next.x = Mathf.Clamp(next.x, minBounds.x, maxBounds.x);
             next.y = Mathf.Clamp(next.y, minBounds.y, maxBounds.y);
-            transform.position = next;
+
+            if (rigidbody2d != null)
+            {
+                rigidbody2d.MovePosition(next);
+            }
+            else
+            {
+                transform.position = new Vector3(next.x, next.y, transform.position.z);
+            }
 
             if (spriteRenderer != null && Mathf.Abs(input.x) > 0.01f)
             {
@@ -117,5 +156,24 @@ namespace Dreamy
                 nodes[i].TryCollect(transform);
             }
         }
+
+        private static void ConfigureImportedMapColliders()
+        {
+            TilemapCollider2D[] tilemapColliders = FindObjectsByType<TilemapCollider2D>(FindObjectsInactive.Exclude);
+            for (int i = 0; i < tilemapColliders.Length; i++)
+            {
+                bool shouldBlockMovement = DreamyLevelTileRules.LayerBlocksMovement(tilemapColliders[i].gameObject.name);
+                tilemapColliders[i].enabled = shouldBlockMovement;
+                tilemapColliders[i].isTrigger = false;
+
+                CompositeCollider2D composite = tilemapColliders[i].GetComponent<CompositeCollider2D>();
+                if (composite != null)
+                {
+                    composite.enabled = shouldBlockMovement;
+                    composite.isTrigger = false;
+                }
+            }
+        }
+
     }
 }

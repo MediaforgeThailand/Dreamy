@@ -6,6 +6,10 @@
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
 
+/Dreamy/
+/Temp_PixelLabRefs/
+/Temp_Tilemap_color1_grid.png
+
 *.zip
 *.zip.meta
 .DS_Store
