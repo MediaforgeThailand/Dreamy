@@ -16,6 +16,9 @@ namespace Dreamy
         Crop,
         CraftedMeal,
         CraftedTool,
+        Coin,
+        UnlockToken,
+        SkillBook,
         Custom
     }
 

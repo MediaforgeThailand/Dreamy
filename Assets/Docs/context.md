@@ -42,11 +42,25 @@ Runtime behavior:
 - Vault UI transfers item stacks between player inventory and the NPC storage inventory.
 - The prototype grants starter Seed, Wood, Food, and Gold only when the player has none of each so the loop can be tested immediately.
 
+Runtime quest/progression prototype:
+- `Assets/Dreamy/Scripts/DreamyQuestDefinition.cs`
+- `Assets/Dreamy/Scripts/DreamyQuestLog.cs`
+- `Assets/Dreamy/Scripts/DreamyPlayerProgression.cs`
+- Quest definitions are ScriptableObject data definitions; the current scene runtime creates temporary prototype definitions at play time until authored assets are ready.
+- Quest objectives currently support collect item, defeat monster, reach level, earn currency, and own unlock token.
+- Quest rewards can grant EXP, coins, premium currency, skill points, unlock tokens, unlock ids, and item stacks.
+- `DreamyPlayerProgression` grants skill points from `DreamyExperience.LeveledUp`.
+- The runtime HUD shows active quest progress plus Coins, Skill Points, Unlock Tokens, and Unlock count.
+- GM Tools can add EXP, Coins, Skill Points, and Unlock Tokens for quick testing.
+
 Item ids added for this prototype:
 - `Seed`
 - `Crop`
 - `CraftedMeal`
 - `CraftedTool`
+- `Coin`
+- `UnlockToken`
+- `SkillBook`
 
 Asset usage:
 - The prototype reuses Tiny Swords UI slot/panel/button sprites from `DreamyPrototypeVisualCatalog`.

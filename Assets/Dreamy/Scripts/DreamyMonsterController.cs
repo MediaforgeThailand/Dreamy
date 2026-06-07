@@ -40,6 +40,7 @@ namespace Dreamy
         [SerializeField] private float attackFramesPerSecond = 10f;
 
         public event Action<DreamyMonsterController> Died;
+        public static event Action<DreamyMonsterController> AnyDied;
 
         private SpriteRenderer spriteRenderer;
         private Rigidbody2D body;
@@ -132,6 +133,7 @@ namespace Dreamy
             visualCatalog = catalog != null ? catalog : visualCatalog;
             target = chaseTarget;
             RefreshCharacterCollisionIgnores(true);
+            EnsureFloatingHealthBar();
             BuildFrames();
             ApplyFrame(idleFrames, 0);
         }
@@ -400,7 +402,12 @@ namespace Dreamy
                 healthBar = gameObject.AddComponent<DreamyFloatingHealthBar>();
             }
 
-            healthBar.Configure(MonsterDisplayName, MonsterLevel, GetHealthBarOffset());
+            healthBar.Configure(
+                MonsterDisplayName,
+                MonsterLevel,
+                GetHealthBarOffset(),
+                visualCatalog != null ? visualCatalog.UiBarBaseSprite : null,
+                visualCatalog != null ? visualCatalog.UiBarFillSprite : null);
         }
 
         private void ApplyFrame(Sprite[] frames, int index)
@@ -565,6 +572,7 @@ namespace Dreamy
             }
 
             Died?.Invoke(this);
+            AnyDied?.Invoke(this);
             float destroyDelay = deathFrames != null && deathFrames.Length > 0
                 ? Mathf.Max(0.35f, deathFrames.Length / Mathf.Max(1f, attackFramesPerSecond))
                 : 0.35f;

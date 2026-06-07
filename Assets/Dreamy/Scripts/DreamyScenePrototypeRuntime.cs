@@ -11,8 +11,14 @@ namespace Dreamy
     {
         private const string RuntimeObjectName = "Dreamy Scene Prototype Runtime";
         private const string HudObjectName = "Dreamy Prototype Runtime HUD";
+        private const string CharacterSelectionObjectName = "Dreamy Character Selection UI";
         private const int PrototypeInventorySlotCount = 60;
         private const int PrototypeMonsterSpawnCount = 4;
+        private const float SampleCharacterPixelsPerUnit = 48f;
+        private const float AxionCharacterPixelsPerUnit = 48f;
+        private const int CharacterChoiceKnight = 0;
+        private const int CharacterChoiceSample = 1;
+        private const int CharacterChoiceAxion = 2;
         private static readonly Color PlayerDamagePopupColor = new Color(1f, 0.2f, 0.16f, 1f);
         private static readonly Color PlayerHitFlashColor = new Color(1f, 0.38f, 0.36f, 1f);
 
@@ -23,8 +29,11 @@ namespace Dreamy
         private DreamyMobilePlayer player;
         private DreamyPrototypeRuntimeHud hud;
         private DreamyPrototypeInteractionUi interactionUi;
+        private DreamyQuestDefinition[] runtimeQuestDefinitions;
         private bool starterPickupsSpawned;
         private bool prototypeLifeSystemsSpawned;
+        private bool characterSelectionShown;
+        private float characterSelectionPreviousTimeScale = 1f;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InitializeForLoadedScene()
@@ -110,6 +119,7 @@ namespace Dreamy
             EnsureEventSystem();
             EnsureHud();
             EnsureInteractionUi();
+            EnsureCharacterSelectionUi();
             EnsureStarterPickups();
             EnsurePrototypeMonster();
             EnsurePrototypeLifeSystems();
@@ -151,9 +161,34 @@ namespace Dreamy
 
             inventory.MaxSlots = Mathf.Max(inventory.MaxSlots, PrototypeInventorySlotCount);
 
-            if (player.GetComponent<DreamyExperience>() == null)
+            DreamyExperience experience = player.GetComponent<DreamyExperience>();
+            if (experience == null)
             {
-                player.gameObject.AddComponent<DreamyExperience>();
+                experience = player.gameObject.AddComponent<DreamyExperience>();
+            }
+
+            DreamyPlayerProgression progression = player.GetComponent<DreamyPlayerProgression>();
+            if (progression == null)
+            {
+                progression = player.gameObject.AddComponent<DreamyPlayerProgression>();
+            }
+
+            progression.Bind(experience);
+
+            DreamyQuestLog questLog = player.GetComponent<DreamyQuestLog>();
+            if (questLog == null)
+            {
+                questLog = player.gameObject.AddComponent<DreamyQuestLog>();
+            }
+
+            questLog.Configure(player, GetRuntimeQuestDefinitions());
+
+            if (visualCatalog != null)
+            {
+                player.ConfigureKnightVisuals(
+                    visualCatalog.PlayerIdleSheet,
+                    visualCatalog.PlayerRunSheet,
+                    visualCatalog.PlayerAttackSheets);
             }
 
             if (player.GetComponent<DreamyPlayerCombat>() == null)
@@ -192,9 +227,14 @@ namespace Dreamy
             DreamyPrototypeRuntimeHud existingHud = FindAnyObjectByType<DreamyPrototypeRuntimeHud>();
             if (existingHud != null)
             {
-                hud = existingHud;
-                hud.Bind(player, visualCatalog);
-                return;
+                if (Application.isPlaying)
+                {
+                    Destroy(existingHud.gameObject);
+                }
+                else
+                {
+                    DestroyImmediate(existingHud.gameObject);
+                }
             }
 
             GameObject hudRoot = new GameObject(HudObjectName);
@@ -229,6 +269,112 @@ namespace Dreamy
             GameObject uiRoot = new GameObject("Dreamy Prototype Interaction UI");
             interactionUi = uiRoot.AddComponent<DreamyPrototypeInteractionUi>();
             interactionUi.Configure(player, visualCatalog);
+        }
+
+        private void EnsureCharacterSelectionUi()
+        {
+            if (characterSelectionShown || player == null || GameObject.Find(CharacterSelectionObjectName) != null)
+            {
+                return;
+            }
+
+            characterSelectionShown = true;
+            characterSelectionPreviousTimeScale = Time.timeScale > 0f ? Time.timeScale : 1f;
+            Time.timeScale = 0f;
+
+            GameObject root = new GameObject(CharacterSelectionObjectName);
+            Canvas canvas = root.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 3000;
+            CanvasScaler scaler = root.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+            root.AddComponent<GraphicRaycaster>();
+
+            GameObject blocker = CreateSelectionPanel(root.transform, "Backdrop", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, new Color(0f, 0f, 0f, 0.55f));
+            RectTransform blockerRect = blocker.GetComponent<RectTransform>();
+            blockerRect.offsetMin = Vector2.zero;
+            blockerRect.offsetMax = Vector2.zero;
+
+            GameObject panel = CreateSelectionPanel(root.transform, "Character Select Panel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(960f, 430f), new Color(0.035f, 0.044f, 0.06f, 0.95f));
+            Text title = CreateSelectionText(panel.transform, "Choose Character", 36, TextAnchor.MiddleCenter, new Vector2(0f, -30f), new Vector2(760f, 54f));
+            title.color = new Color(1f, 0.94f, 0.82f, 1f);
+
+            Sprite knightPreview = CreatePreviewSprite(visualCatalog != null ? visualCatalog.PlayerIdleSheet : null, 8, 1, DefaultPreviewPixelsPerUnit());
+            Sprite samplePreview = CreatePreviewSprite(visualCatalog != null ? visualCatalog.SampleCharacterIdleSheet : null, 10, 1, SampleCharacterPixelsPerUnit);
+            Sprite axionPreview = CreatePreviewSprite(visualCatalog != null ? visualCatalog.AxionCharacterIdleSheet : null, 7, 1, AxionCharacterPixelsPerUnit);
+
+            Button knightButton = CreateCharacterChoiceButton(panel.transform, "Knight", knightPreview, new Vector2(-300f, -214f), true);
+            knightButton.onClick.AddListener(() => SelectCharacter(root, CharacterChoiceKnight));
+
+            bool hasSample = visualCatalog != null && visualCatalog.HasSampleCharacter;
+            Button sampleButton = CreateCharacterChoiceButton(panel.transform, "Sample", samplePreview, new Vector2(0f, -214f), hasSample);
+            sampleButton.onClick.AddListener(() => SelectCharacter(root, CharacterChoiceSample));
+
+            bool hasAxion = visualCatalog != null && visualCatalog.HasAxionCharacter;
+            Button axionButton = CreateCharacterChoiceButton(panel.transform, "Little Axion", axionPreview, new Vector2(300f, -214f), hasAxion);
+            axionButton.onClick.AddListener(() => SelectCharacter(root, CharacterChoiceAxion));
+        }
+
+        private void SelectCharacter(GameObject selectionRoot, int characterChoice)
+        {
+            if (player != null)
+            {
+                if (characterChoice == CharacterChoiceSample && visualCatalog != null && visualCatalog.HasSampleCharacter)
+                {
+                    player.ConfigureCharacterVisuals(
+                        visualCatalog.SampleCharacterIdleSheet,
+                        10,
+                        1,
+                        -1,
+                        visualCatalog.SampleCharacterWalkSheet,
+                        4,
+                        6,
+                        0,
+                        System.Array.Empty<Texture2D>(),
+                        System.Array.Empty<int>(),
+                        System.Array.Empty<int>(),
+                        SampleCharacterPixelsPerUnit,
+                        5f,
+                        12f,
+                        12f,
+                        false);
+                }
+                else if (characterChoice == CharacterChoiceAxion && visualCatalog != null && visualCatalog.HasAxionCharacter)
+                {
+                    player.ConfigureCharacterVisuals(
+                        visualCatalog.AxionCharacterIdleSheet,
+                        7,
+                        1,
+                        -1,
+                        visualCatalog.AxionCharacterRunSheet,
+                        8,
+                        1,
+                        -1,
+                        visualCatalog.AxionCharacterAttackSheets,
+                        new[] { 10, 15, 10 },
+                        new[] { 1, 1, 1 },
+                        AxionCharacterPixelsPerUnit,
+                        5f,
+                        13f,
+                        24f,
+                        false);
+                }
+                else if (visualCatalog != null)
+                {
+                    player.ConfigureKnightVisuals(
+                        visualCatalog.PlayerIdleSheet,
+                        visualCatalog.PlayerRunSheet,
+                        visualCatalog.PlayerAttackSheets);
+                }
+            }
+
+            Time.timeScale = characterSelectionPreviousTimeScale;
+            if (selectionRoot != null)
+            {
+                Destroy(selectionRoot);
+            }
         }
 
         private void EnsureStarterPickups()
@@ -382,6 +528,78 @@ namespace Dreamy
             }
         }
 
+        private DreamyQuestDefinition[] GetRuntimeQuestDefinitions()
+        {
+            if (runtimeQuestDefinitions != null)
+            {
+                return runtimeQuestDefinitions;
+            }
+
+            DreamyQuestDefinition supplyQuest = ScriptableObject.CreateInstance<DreamyQuestDefinition>();
+            supplyQuest.name = "RuntimeQuest_FieldSupplies";
+            supplyQuest.hideFlags = HideFlags.DontSave;
+            supplyQuest.ConfigureRuntime(
+                "runtime.field_supplies",
+                "Field Supplies",
+                "Bring enough materials to keep the first camp running.",
+                new[]
+                {
+                    new DreamyQuestObjectiveDefinition(DreamyQuestObjectiveKind.CollectItem, DreamyItemId.Wood, string.Empty, "Wood", 5),
+                    new DreamyQuestObjectiveDefinition(DreamyQuestObjectiveKind.CollectItem, DreamyItemId.Food, string.Empty, "Food", 3)
+                },
+                new DreamyQuestRewardDefinition(
+                    45,
+                    16,
+                    0,
+                    0,
+                    0,
+                    "recipe.prototype_meal",
+                    new[] { new DreamyItemStack(DreamyItemId.Seed, "Seed", 2) }));
+
+            DreamyQuestDefinition huntQuest = ScriptableObject.CreateInstance<DreamyQuestDefinition>();
+            huntQuest.name = "RuntimeQuest_FirstHunt";
+            huntQuest.hideFlags = HideFlags.DontSave;
+            huntQuest.ConfigureRuntime(
+                "runtime.first_hunt",
+                "First Hunt",
+                "Clear a small threat pack and prove the combat loop.",
+                new[]
+                {
+                    new DreamyQuestObjectiveDefinition(DreamyQuestObjectiveKind.DefeatMonster, DreamyItemId.Custom, string.Empty, "Defeat", 2)
+                },
+                new DreamyQuestRewardDefinition(
+                    70,
+                    24,
+                    0,
+                    1,
+                    1,
+                    "map.prototype_edge",
+                    new[] { new DreamyItemStack(DreamyItemId.UnlockToken, "Unlock Token", 1) }));
+
+            DreamyQuestDefinition levelQuest = ScriptableObject.CreateInstance<DreamyQuestDefinition>();
+            levelQuest.name = "RuntimeQuest_LevelReady";
+            levelQuest.hideFlags = HideFlags.DontSave;
+            levelQuest.ConfigureRuntime(
+                "runtime.level_ready",
+                "Training Check",
+                "Reach the next level to test skill point rewards.",
+                new[]
+                {
+                    new DreamyQuestObjectiveDefinition(DreamyQuestObjectiveKind.ReachLevel, DreamyItemId.Custom, string.Empty, "Level", 2)
+                },
+                new DreamyQuestRewardDefinition(
+                    0,
+                    12,
+                    0,
+                    1,
+                    0,
+                    "skill.prototype_slot",
+                    new[] { new DreamyItemStack(DreamyItemId.SkillBook, "Skill Book", 1) }));
+
+            runtimeQuestDefinitions = new[] { supplyQuest, huntQuest, levelQuest };
+            return runtimeQuestDefinitions;
+        }
+
         private void SpawnMonster(DreamyMonsterDefinition definition, Vector3 position, int index)
         {
             GameObject monster = new GameObject("Prototype Monster " + (index + 1).ToString("00") + " - " + definition.DisplayName);
@@ -466,6 +684,115 @@ namespace Dreamy
             return Sprite.Create(texture, new Rect(0f, 0f, 8f, 8f), new Vector2(0.5f, 0.5f), 16f);
         }
 
+        private static GameObject CreateSelectionPanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPosition, Vector2 size, Color color)
+        {
+            GameObject panel = new GameObject(name);
+            panel.transform.SetParent(parent, false);
+            Image image = panel.AddComponent<Image>();
+            image.sprite = CreateSelectionSprite(Color.white);
+            image.color = color;
+            image.raycastTarget = true;
+
+            RectTransform rect = panel.GetComponent<RectTransform>();
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.pivot = pivot;
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = size;
+            return panel;
+        }
+
+        private static Button CreateCharacterChoiceButton(Transform parent, string label, Sprite previewSprite, Vector2 position, bool interactable)
+        {
+            GameObject buttonObject = new GameObject(label + " Choice Button");
+            buttonObject.transform.SetParent(parent, false);
+            Image background = buttonObject.AddComponent<Image>();
+            background.sprite = CreateSelectionSprite(Color.white);
+            background.color = interactable ? new Color(0.11f, 0.13f, 0.16f, 0.96f) : new Color(0.08f, 0.08f, 0.09f, 0.72f);
+            Button button = buttonObject.AddComponent<Button>();
+            button.interactable = interactable;
+
+            RectTransform rect = buttonObject.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = new Vector2(260f, 230f);
+
+            GameObject preview = new GameObject("Preview");
+            preview.transform.SetParent(buttonObject.transform, false);
+            Image previewImage = preview.AddComponent<Image>();
+            previewImage.sprite = previewSprite;
+            previewImage.preserveAspect = true;
+            previewImage.raycastTarget = false;
+            previewImage.color = interactable ? Color.white : new Color(1f, 1f, 1f, 0.32f);
+            RectTransform previewRect = preview.GetComponent<RectTransform>();
+            previewRect.anchorMin = new Vector2(0.5f, 0.5f);
+            previewRect.anchorMax = new Vector2(0.5f, 0.5f);
+            previewRect.pivot = new Vector2(0.5f, 0.5f);
+            previewRect.anchoredPosition = new Vector2(0f, 32f);
+            previewRect.sizeDelta = new Vector2(160f, 140f);
+
+            Text text = CreateSelectionText(buttonObject.transform, label, 28, TextAnchor.MiddleCenter, new Vector2(0f, -82f), new Vector2(210f, 42f));
+            text.color = interactable ? Color.white : new Color(1f, 1f, 1f, 0.45f);
+            return button;
+        }
+
+        private static Text CreateSelectionText(Transform parent, string value, int fontSize, TextAnchor alignment, Vector2 position, Vector2 size)
+        {
+            GameObject textObject = new GameObject("Text");
+            textObject.transform.SetParent(parent, false);
+            Text text = textObject.AddComponent<Text>();
+            text.text = value;
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = fontSize;
+            text.alignment = alignment;
+            text.color = Color.white;
+            text.raycastTarget = false;
+
+            RectTransform rect = text.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = size;
+            return text;
+        }
+
+        private static Sprite CreatePreviewSprite(Texture2D texture, int columns, int rows, float pixelsPerUnit)
+        {
+            if (texture == null || columns <= 0 || rows <= 0)
+            {
+                return CreateSelectionSprite(new Color(0.23f, 0.42f, 0.55f, 1f));
+            }
+
+            texture.filterMode = FilterMode.Point;
+            texture.wrapMode = TextureWrapMode.Clamp;
+            int width = Mathf.Max(1, texture.width / columns);
+            int height = Mathf.Max(1, texture.height / rows);
+            Rect rect = new Rect(0f, (rows - 1) * height, width, height);
+            return Sprite.Create(texture, rect, new Vector2(0.5f, 0.28f), Mathf.Max(1f, pixelsPerUnit), 0, SpriteMeshType.FullRect);
+        }
+
+        private static float DefaultPreviewPixelsPerUnit()
+        {
+            return 128f;
+        }
+
+        private static Sprite CreateSelectionSprite(Color color)
+        {
+            Texture2D texture = new Texture2D(4, 4);
+            Color[] pixels = new Color[16];
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = color;
+            }
+
+            texture.SetPixels(pixels);
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0f, 0f, 4f, 4f), new Vector2(0.5f, 0.5f), 4f);
+        }
+
         private static void EnsureEventSystem()
         {
             if (FindAnyObjectByType<EventSystem>() != null)
@@ -477,6 +804,7 @@ namespace Dreamy
             eventSystem.AddComponent<EventSystem>();
             eventSystem.AddComponent<StandaloneInputModule>();
         }
+
     }
 
     public sealed class DreamyPrototypeRuntimeHud : MonoBehaviour
@@ -490,16 +818,16 @@ namespace Dreamy
         private Image statusPanelImage;
         private Image resourcePanelImage;
         private Image inventoryWindowImage;
-        private Image healthBarBackground;
-        private Image healthFill;
-        private Image staminaBarBackground;
-        private Image staminaFill;
-        private Image expBarBackground;
-        private Image expFill;
+        private Image questPanelImage;
+        private DreamySegmentedBar healthBar;
+        private DreamySegmentedBar staminaBar;
+        private DreamySegmentedBar expBar;
         private Text healthLabel;
         private Text staminaLabel;
         private Text expLabel;
         private Text resourcesLabel;
+        private Text progressionLabel;
+        private Text questLabel;
         private Text messageLabel;
         private Button attackButton;
         private Button dodgeButton;
@@ -516,6 +844,8 @@ namespace Dreamy
         private readonly Text[] inventorySlotQuantities = new Text[InventorySlotCount];
         private DreamyMobilePlayer player;
         private DreamyPlayerCombat playerCombat;
+        private DreamyPlayerProgression progression;
+        private DreamyQuestLog questLog;
         private DreamyPrototypeVisualCatalog visualCatalog;
         private string message;
         private float messageUntil;
@@ -523,6 +853,7 @@ namespace Dreamy
         private DreamyCharacterStats Stats => player != null ? player.CharacterStats : null;
         private DreamyInventory Inventory => player != null ? player.Inventory : null;
         private DreamyExperience Experience => player != null ? player.Experience : null;
+        private DreamyPlayerProgression Progression => progression != null ? progression : player != null ? player.GetComponent<DreamyPlayerProgression>() : null;
 
         private void OnEnable()
         {
@@ -540,24 +871,34 @@ namespace Dreamy
 
         public void Build(Transform parent)
         {
-            GameObject statusPanel = CreatePanel(parent, "Prototype Status Panel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(22f, -22f), new Vector2(470f, 210f));
+            GameObject statusPanel = CreatePanel(parent, "Prototype Status Panel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(22f, -22f), new Vector2(590f, 160f));
             statusPanelImage = statusPanel.GetComponent<Image>();
-            CreateBar(statusPanel.transform, "HP", new Color(0.9f, 0.18f, 0.22f, 1f), new Vector2(18f, -20f), out healthBarBackground, out healthFill, out healthLabel);
-            CreateBar(statusPanel.transform, "STA", new Color(0.22f, 0.8f, 0.4f, 1f), new Vector2(18f, -78f), out staminaBarBackground, out staminaFill, out staminaLabel);
-            CreateBar(statusPanel.transform, "EXP", new Color(0.28f, 0.62f, 1f, 1f), new Vector2(18f, -136f), out expBarBackground, out expFill, out expLabel);
+            healthBar = CreateBar(statusPanel.transform, "HP", new Color(0.9f, 0.18f, 0.22f, 1f), new Vector2(18f, -16f), new Vector2(521f, 50f), 21, out healthLabel);
+            staminaBar = CreateBar(statusPanel.transform, "STA", new Color(0.22f, 0.8f, 0.4f, 1f), new Vector2(18f, -66f), new Vector2(434f, 42f), 18, out staminaLabel);
+            expBar = CreateBar(statusPanel.transform, "EXP", new Color(0.28f, 0.62f, 1f, 1f), new Vector2(18f, -112f), new Vector2(434f, 42f), 18, out expLabel);
 
             inventoryButton = CreateButton(parent, "BAG", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), new Vector2(92f, 92f));
             inventoryButtonIcon = CreateButtonIcon(inventoryButton.transform, new Vector2(44f, 44f), new Vector2(0f, 8f));
             PlaceButtonLabel(inventoryButton, "BAG", 15, new Vector2(0f, -31f), new Vector2(78f, 22f));
             BuildInventoryWindow(parent);
 
-            GameObject resourcePanel = CreatePanel(parent, "Prototype Resource Panel", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(480f, 68f));
+            GameObject resourcePanel = CreatePanel(parent, "Prototype Resource Panel", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(760f, 78f));
             resourcePanelImage = resourcePanel.GetComponent<Image>();
-            resourcesLabel = CreateText(resourcePanel.transform, "Resources", 24, TextAnchor.MiddleCenter, new Vector2(0f, -10f), new Vector2(480f, 48f));
+            resourcesLabel = CreateText(resourcePanel.transform, "Resources", 22, TextAnchor.MiddleCenter, new Vector2(0f, -7f), new Vector2(760f, 32f));
             RectTransform resourcesRect = resourcesLabel.GetComponent<RectTransform>();
             resourcesRect.anchorMin = new Vector2(0.5f, 1f);
             resourcesRect.anchorMax = new Vector2(0.5f, 1f);
             resourcesRect.pivot = new Vector2(0.5f, 1f);
+            progressionLabel = CreateText(resourcePanel.transform, "Progression", 18, TextAnchor.MiddleCenter, new Vector2(0f, -39f), new Vector2(760f, 28f));
+            RectTransform progressionRect = progressionLabel.GetComponent<RectTransform>();
+            progressionRect.anchorMin = new Vector2(0.5f, 1f);
+            progressionRect.anchorMax = new Vector2(0.5f, 1f);
+            progressionRect.pivot = new Vector2(0.5f, 1f);
+
+            GameObject questPanel = CreatePanel(parent, "Prototype Quest Panel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(22f, -196f), new Vector2(520f, 128f));
+            questPanelImage = questPanel.GetComponent<Image>();
+            questLabel = CreateText(questPanel.transform, "Quest", 20, TextAnchor.UpperLeft, new Vector2(18f, -14f), new Vector2(486f, 100f));
+            AddTextOutline(questLabel);
 
             messageLabel = CreateText(parent, string.Empty, 28, TextAnchor.MiddleCenter, new Vector2(0f, -102f), new Vector2(760f, 54f));
             RectTransform messageRect = messageLabel.GetComponent<RectTransform>();
@@ -578,6 +919,8 @@ namespace Dreamy
         {
             player = targetPlayer;
             playerCombat = player != null ? player.GetComponent<DreamyPlayerCombat>() : null;
+            progression = player != null ? player.GetComponent<DreamyPlayerProgression>() : null;
+            questLog = player != null ? player.GetComponent<DreamyQuestLog>() : null;
             visualCatalog = catalog;
             ApplyCatalogSprites();
             if (attackButton != null)
@@ -621,16 +964,16 @@ namespace Dreamy
 
         private void ApplyCatalogSprites()
         {
-            ApplySolidSprite(statusPanelImage, new Color(0.025f, 0.032f, 0.045f, 0.78f), Image.Type.Simple);
+            HideImage(statusPanelImage);
             ApplySolidSprite(resourcePanelImage, new Color(0.025f, 0.032f, 0.045f, 0.78f), Image.Type.Simple);
             ApplySolidSprite(inventoryWindowImage, new Color(0.025f, 0.032f, 0.045f, 0.96f), Image.Type.Simple);
+            ApplySolidSprite(questPanelImage, new Color(0.025f, 0.032f, 0.045f, 0.7f), Image.Type.Simple);
 
-            ApplySolidSprite(healthBarBackground, new Color(0f, 0f, 0f, 0.62f), Image.Type.Simple);
-            ApplySolidSprite(staminaBarBackground, new Color(0f, 0f, 0f, 0.62f), Image.Type.Simple);
-            ApplySolidSprite(expBarBackground, new Color(0f, 0f, 0f, 0.62f), Image.Type.Simple);
-            ApplySolidSprite(healthFill, new Color(0.9f, 0.18f, 0.22f, 1f), Image.Type.Filled);
-            ApplySolidSprite(staminaFill, new Color(0.22f, 0.8f, 0.4f, 1f), Image.Type.Filled);
-            ApplySolidSprite(expFill, new Color(0.28f, 0.62f, 1f, 1f), Image.Type.Filled);
+            Sprite barBaseSprite = visualCatalog != null ? visualCatalog.UiBarBaseSprite : null;
+            Sprite barFillSprite = visualCatalog != null ? visualCatalog.UiBarFillSprite : null;
+            ApplySegmentedBar(healthBar, barBaseSprite, barFillSprite, Color.white);
+            ApplySegmentedBar(staminaBar, barBaseSprite, barFillSprite, new Color(0.22f, 0.8f, 0.4f, 1f));
+            ApplySegmentedBar(expBar, barBaseSprite, barFillSprite, new Color(0.28f, 0.62f, 1f, 1f));
 
             for (int i = 0; i < inventorySlotBackgrounds.Length; i++)
             {
@@ -667,6 +1010,7 @@ namespace Dreamy
             RefreshStats();
             RefreshInventory();
             RefreshResources();
+            RefreshQuest();
             RefreshMessage();
         }
 
@@ -675,8 +1019,8 @@ namespace Dreamy
             DreamyCharacterStats stats = Stats;
             if (stats != null)
             {
-                SetFill(healthFill, stats.MaxHealth > 0f ? stats.CurrentHealth / stats.MaxHealth : 0f);
-                SetFill(staminaFill, stats.MaxStamina > 0f ? stats.CurrentStamina / stats.MaxStamina : 0f);
+                SetFill(healthBar, stats.MaxHealth > 0f ? stats.CurrentHealth / stats.MaxHealth : 0f);
+                SetFill(staminaBar, stats.MaxStamina > 0f ? stats.CurrentStamina / stats.MaxStamina : 0f);
                 SetText(healthLabel, "HP " + Mathf.CeilToInt(stats.CurrentHealth) + "/" + Mathf.CeilToInt(stats.MaxHealth));
                 SetText(staminaLabel, "STA " + Mathf.CeilToInt(stats.CurrentStamina) + "/" + Mathf.CeilToInt(stats.MaxStamina));
             }
@@ -684,7 +1028,7 @@ namespace Dreamy
             DreamyExperience experience = Experience;
             if (experience != null)
             {
-                SetFill(expFill, experience.ExpToNextLevel > 0 ? (float)experience.CurrentExp / experience.ExpToNextLevel : 0f);
+                SetFill(expBar, experience.ExpToNextLevel > 0 ? (float)experience.CurrentExp / experience.ExpToNextLevel : 0f);
                 SetText(expLabel, "LV " + experience.Level + " EXP " + experience.CurrentExp + "/" + experience.ExpToNextLevel);
             }
         }
@@ -732,6 +1076,28 @@ namespace Dreamy
             }
 
             resourcesLabel.text = "Wood " + state.Wood + "    Gold " + state.Gold + "    Food " + state.Food;
+            DreamyPlayerProgression playerProgression = Progression;
+            if (progressionLabel != null)
+            {
+                progressionLabel.text = playerProgression != null
+                    ? "Coins " + playerProgression.Coins + "    Skill Points " + playerProgression.SkillPoints + "    Unlock Tokens " + playerProgression.UnlockTokens + "    Unlocks " + playerProgression.UnlockCount
+                    : "Coins 0    Skill Points 0    Unlock Tokens 0    Unlocks 0";
+            }
+        }
+
+        private void RefreshQuest()
+        {
+            if (questLabel == null)
+            {
+                return;
+            }
+
+            if (questLog == null && player != null)
+            {
+                questLog = player.GetComponent<DreamyQuestLog>();
+            }
+
+            questLabel.text = questLog != null ? questLog.BuildHudSummary(3) : "Quest: Not ready";
         }
 
         private void RefreshMessage()
@@ -908,7 +1274,7 @@ namespace Dreamy
             return panel;
         }
 
-        private static void CreateBar(Transform parent, string label, Color fillColor, Vector2 position, out Image backgroundImage, out Image fill, out Text text)
+        private static DreamySegmentedBar CreateBar(Transform parent, string label, Color fillColor, Vector2 position, Vector2 size, int fontSize, out Text text)
         {
             GameObject root = new GameObject(label + " Bar");
             root.transform.SetParent(parent, false);
@@ -917,37 +1283,14 @@ namespace Dreamy
             rootRect.anchorMax = new Vector2(0f, 1f);
             rootRect.pivot = new Vector2(0f, 1f);
             rootRect.anchoredPosition = position;
-            rootRect.sizeDelta = new Vector2(434f, 42f);
+            rootRect.sizeDelta = size;
 
-            GameObject background = new GameObject("Background");
-            background.transform.SetParent(root.transform, false);
-            backgroundImage = background.AddComponent<Image>();
-            backgroundImage.sprite = CreateUiSprite(Color.white);
-            backgroundImage.color = new Color(0f, 0f, 0f, 0.45f);
-            backgroundImage.raycastTarget = false;
-            RectTransform backgroundRect = background.GetComponent<RectTransform>();
-            backgroundRect.anchorMin = Vector2.zero;
-            backgroundRect.anchorMax = Vector2.one;
-            backgroundRect.offsetMin = Vector2.zero;
-            backgroundRect.offsetMax = Vector2.zero;
+            DreamySegmentedBar bar = root.AddComponent<DreamySegmentedBar>();
+            bar.Build(rootRect.sizeDelta, fillColor);
 
-            GameObject fillObject = new GameObject("Fill");
-            fillObject.transform.SetParent(background.transform, false);
-            fill = fillObject.AddComponent<Image>();
-            fill.sprite = CreateUiSprite(Color.white);
-            fill.color = fillColor;
-            fill.type = Image.Type.Filled;
-            fill.fillMethod = Image.FillMethod.Horizontal;
-            fill.fillOrigin = (int)Image.OriginHorizontal.Left;
-            fill.raycastTarget = false;
-            RectTransform fillRect = fill.GetComponent<RectTransform>();
-            fillRect.anchorMin = Vector2.zero;
-            fillRect.anchorMax = Vector2.one;
-            fillRect.offsetMin = Vector2.zero;
-            fillRect.offsetMax = Vector2.zero;
-
-            text = CreateText(root.transform, label, 20, TextAnchor.MiddleLeft, new Vector2(12f, -4f), new Vector2(410f, 34f));
+            text = CreateText(root.transform, label, fontSize, TextAnchor.MiddleLeft, new Vector2(30f, -4f), new Vector2(Mathf.Max(1f, size.x - 52f), Mathf.Max(1f, size.y - 8f)));
             AddTextOutline(text);
+            return bar;
         }
 
         private static Button CreateButton(Transform parent, string label, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 position, Vector2 size)
@@ -1056,6 +1399,25 @@ namespace Dreamy
             }
         }
 
+        private static void HideImage(Image image)
+        {
+            if (image == null)
+            {
+                return;
+            }
+
+            image.enabled = false;
+            image.raycastTarget = false;
+        }
+
+        private static void ApplySegmentedBar(DreamySegmentedBar bar, Sprite baseSprite, Sprite fillSprite, Color fillTint)
+        {
+            if (bar != null)
+            {
+                bar.ApplySprites(baseSprite, fillSprite, fillTint);
+            }
+        }
+
         private static void ApplyButtonSprites(Button button, Sprite regularSprite, Sprite pressedSprite)
         {
             if (button == null || regularSprite == null)
@@ -1133,11 +1495,11 @@ namespace Dreamy
             return Sprite.Create(texture, new Rect(0f, 0f, 4f, 4f), new Vector2(0.5f, 0.5f), 4f);
         }
 
-        private static void SetFill(Image image, float value)
+        private static void SetFill(DreamySegmentedBar bar, float value)
         {
-            if (image != null)
+            if (bar != null)
             {
-                image.fillAmount = Mathf.Clamp01(value);
+                bar.SetFill(value);
             }
         }
 

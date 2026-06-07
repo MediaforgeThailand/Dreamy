@@ -9,6 +9,7 @@ namespace Dreamy.Editor
     {
         private const string FirstSceneBuildRequestFileName = "DreamyFirstSceneBuild.request";
         private const string Scene2BuildRequestFileName = "DreamyScene2Build.request";
+        private const string VillageMapBuildRequestFileName = "DreamyVillageMapBuild.request";
         private const string OpenBlockingToolRequestFileName = "DreamyOpenBlockingTool.request";
         private const string ApplyLandscapeRequestFileName = "DreamyApplyLandscape.request";
         private static double nextCheckTime;
@@ -49,17 +50,18 @@ namespace Dreamy.Editor
             string openBlockingToolPath = Path.Combine(projectRoot, "Temp", OpenBlockingToolRequestFileName);
             string applyLandscapePath = Path.Combine(projectRoot, "Temp", ApplyLandscapeRequestFileName);
             string scene2RequestPath = Path.Combine(projectRoot, "Temp", Scene2BuildRequestFileName);
+            string villageMapRequestPath = Path.Combine(projectRoot, "Temp", VillageMapBuildRequestFileName);
             string requestPath = Path.Combine(projectRoot, "Temp", FirstSceneBuildRequestFileName);
 
-            if (EditorApplication.isPlaying && File.Exists(scene2RequestPath))
+            if (EditorApplication.isPlaying && (File.Exists(scene2RequestPath) || File.Exists(villageMapRequestPath)))
             {
-                Debug.Log("[Dreamy] Scene 2 build request is waiting; exiting Play Mode first.");
+                Debug.Log("[Dreamy] Map build request is waiting; exiting Play Mode first.");
                 EditorApplication.isPlaying = false;
                 return;
             }
 
             if (EditorApplication.isPlayingOrWillChangePlaymode
-                && (File.Exists(openBlockingToolPath) || File.Exists(applyLandscapePath) || File.Exists(scene2RequestPath) || File.Exists(requestPath)))
+                && (File.Exists(openBlockingToolPath) || File.Exists(applyLandscapePath) || File.Exists(scene2RequestPath) || File.Exists(villageMapRequestPath) || File.Exists(requestPath)))
             {
                 return;
             }
@@ -83,6 +85,13 @@ namespace Dreamy.Editor
                 Debug.Log("[Dreamy] One-shot request received: build scene 2 map.");
                 DreamyPrototypeSceneBuilder.BuildScene2Map();
                 File.Delete(scene2RequestPath);
+            }
+
+            if (File.Exists(villageMapRequestPath))
+            {
+                Debug.Log("[Dreamy] One-shot request received: build village map.");
+                DreamyPrototypeSceneBuilder.BuildVillageMap();
+                File.Delete(villageMapRequestPath);
             }
 
             if (!File.Exists(requestPath))

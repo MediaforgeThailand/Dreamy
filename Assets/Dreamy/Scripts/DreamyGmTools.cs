@@ -19,6 +19,7 @@ namespace Dreamy
         private DreamyCharacterStats characterStats;
         private DreamyInventory inventory;
         private DreamyExperience experience;
+        private DreamyPlayerProgression progression;
         private DreamyCameraFollow cameraFollow;
         private Vector2 scrollPosition;
         private float nextRefreshTime;
@@ -116,6 +117,11 @@ namespace Dreamy
                 experience = player.Experience;
             }
 
+            if (progression == null && player != null)
+            {
+                progression = player.GetComponent<DreamyPlayerProgression>();
+            }
+
             if (characterStats == null)
             {
                 characterStats = Object.FindFirstObjectByType<DreamyCharacterStats>();
@@ -129,6 +135,11 @@ namespace Dreamy
             if (experience == null)
             {
                 experience = Object.FindFirstObjectByType<DreamyExperience>();
+            }
+
+            if (progression == null)
+            {
+                progression = Object.FindFirstObjectByType<DreamyPlayerProgression>();
             }
 
             if (cameraFollow == null)
@@ -167,6 +178,7 @@ namespace Dreamy
                 characterStats = null;
                 inventory = null;
                 experience = null;
+                progression = null;
                 cameraFollow = null;
                 RefreshTargets();
             }
@@ -242,6 +254,11 @@ namespace Dreamy
             }
 
             GUILayout.Label($"Level {experience.Level} | EXP {experience.CurrentExp}/{experience.ExpToNextLevel}");
+            if (progression != null)
+            {
+                GUILayout.Label($"Coins {progression.Coins} | SP {progression.SkillPoints} | Unlock {progression.UnlockTokens}");
+            }
+
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("+10 EXP", GUILayout.Height(ButtonHeight)))
             {
@@ -251,6 +268,28 @@ namespace Dreamy
             if (GUILayout.Button("+100 EXP", GUILayout.Height(ButtonHeight)))
             {
                 experience.AddExperience(100);
+            }
+            GUILayout.EndHorizontal();
+
+            if (progression == null)
+            {
+                return;
+            }
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("+25 Coin", GUILayout.Height(ButtonHeight)))
+            {
+                progression.AddCoins(25);
+            }
+
+            if (GUILayout.Button("+1 SP", GUILayout.Height(ButtonHeight)))
+            {
+                progression.AddSkillPoints(1);
+            }
+
+            if (GUILayout.Button("+1 Unlock", GUILayout.Height(ButtonHeight)))
+            {
+                progression.AddUnlockTokens(1);
             }
             GUILayout.EndHorizontal();
         }

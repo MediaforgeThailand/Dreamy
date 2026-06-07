@@ -10,21 +10,20 @@ namespace Dreamy
         private const int SortingOrder = 245;
         private const float CanvasScale = 0.01f;
 
-        private static Sprite whiteSprite;
-
         [SerializeField] private string displayName = "Monster";
         [SerializeField] private int level = 1;
         [SerializeField] private Vector2 worldOffset = new Vector2(0f, 1.18f);
         [SerializeField] private Vector2 panelSize = new Vector2(158f, 42f);
         [SerializeField] private Color barFillColor = new Color(0.92f, 0.16f, 0.12f, 1f);
-        [SerializeField] private Color barBackColor = new Color(0f, 0f, 0f, 0.7f);
 
         private DreamyCharacterStats stats;
         private Canvas canvas;
         private RectTransform rootRect;
         private Text titleLabel;
         private Text healthLabel;
-        private Image healthFill;
+        private DreamySegmentedBar healthBar;
+        private Sprite barBaseSprite;
+        private Sprite barFillSprite;
 
         private void Awake()
         {
@@ -67,13 +66,27 @@ namespace Dreamy
             }
         }
 
-        public void Configure(string monsterName, int monsterLevel, Vector2 offset)
+        public void Configure(string monsterName, int monsterLevel, Vector2 offset, Sprite baseSprite = null, Sprite fillSprite = null)
         {
             displayName = string.IsNullOrEmpty(monsterName) ? displayName : monsterName;
             level = Mathf.Max(1, monsterLevel);
             worldOffset = offset;
-            Build();
+            barBaseSprite = baseSprite;
+            barFillSprite = fillSprite;
+            Rebuild();
+            ApplyBarSprites();
             Refresh();
+        }
+
+        private void Rebuild()
+        {
+            ClearExistingRoot();
+            canvas = null;
+            rootRect = null;
+            titleLabel = null;
+            healthLabel = null;
+            healthBar = null;
+            Build();
         }
 
         private void Build()
@@ -112,27 +125,16 @@ namespace Dreamy
             titleOutline.effectDistance = new Vector2(1f, -1f);
             ConfigureRect(titleLabel.rectTransform, new Vector2(0f, 10f), new Vector2(panelSize.x, 20f));
 
-            GameObject barBack = new GameObject("Health Back");
-            barBack.transform.SetParent(root.transform, false);
-            Image backImage = barBack.AddComponent<Image>();
-            backImage.sprite = WhiteSprite;
-            backImage.color = barBackColor;
-            backImage.raycastTarget = false;
-            ConfigureRect(backImage.rectTransform, new Vector2(0f, -9f), new Vector2(panelSize.x - 18f, 12f));
-
-            GameObject barFill = new GameObject("Health Fill");
-            barFill.transform.SetParent(barBack.transform, false);
-            healthFill = barFill.AddComponent<Image>();
-            healthFill.sprite = WhiteSprite;
-            healthFill.color = barFillColor;
-            healthFill.type = Image.Type.Filled;
-            healthFill.fillMethod = Image.FillMethod.Horizontal;
-            healthFill.fillOrigin = (int)Image.OriginHorizontal.Left;
-            healthFill.raycastTarget = false;
-            ConfigureRect(healthFill.rectTransform, Vector2.zero, new Vector2(panelSize.x - 22f, 8f));
+            GameObject barObject = new GameObject("Health Bar", typeof(RectTransform));
+            barObject.transform.SetParent(root.transform, false);
+            RectTransform barRect = barObject.GetComponent<RectTransform>();
+            ConfigureRect(barRect, new Vector2(0f, -9f), new Vector2(panelSize.x - 18f, 14f));
+            healthBar = barObject.AddComponent<DreamySegmentedBar>();
+            healthBar.Build(barRect.sizeDelta, barFillColor);
+            ApplyBarSprites();
 
             GameObject healthTextObject = new GameObject("Health Text");
-            healthTextObject.transform.SetParent(barBack.transform, false);
+            healthTextObject.transform.SetParent(barObject.transform, false);
             healthLabel = healthTextObject.AddComponent<Text>();
             healthLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             healthLabel.fontSize = 10;
@@ -140,6 +142,35 @@ namespace Dreamy
             healthLabel.color = Color.white;
             healthLabel.raycastTarget = false;
             ConfigureRect(healthLabel.rectTransform, Vector2.zero, new Vector2(panelSize.x - 18f, 12f));
+        }
+
+        private void ApplyBarSprites()
+        {
+            if (healthBar != null)
+            {
+                healthBar.ApplySprites(barBaseSprite, barFillSprite, Color.white);
+            }
+        }
+
+        private void ClearExistingRoot()
+        {
+            for (int i = transform.childCount - 1; i >= 0; i--)
+            {
+                Transform child = transform.GetChild(i);
+                if (child.name != "Floating Health Bar")
+                {
+                    continue;
+                }
+
+                if (Application.isPlaying)
+                {
+                    Destroy(child.gameObject);
+                }
+                else
+                {
+                    DestroyImmediate(child.gameObject);
+                }
+            }
         }
 
         private void Refresh()
@@ -155,9 +186,9 @@ namespace Dreamy
             }
 
             float healthPercent = stats.MaxHealth > 0f ? Mathf.Clamp01(stats.CurrentHealth / stats.MaxHealth) : 0f;
-            if (healthFill != null)
+            if (healthBar != null)
             {
-                healthFill.fillAmount = healthPercent;
+                healthBar.SetFill(healthPercent);
             }
 
             if (healthLabel != null)
@@ -178,30 +209,6 @@ namespace Dreamy
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = position;
             rect.sizeDelta = size;
-        }
-
-        private static Sprite WhiteSprite
-        {
-            get
-            {
-                if (whiteSprite != null)
-                {
-                    return whiteSprite;
-                }
-
-                Texture2D texture = new Texture2D(4, 4, TextureFormat.RGBA32, false);
-                Color[] pixels = new Color[16];
-                for (int i = 0; i < pixels.Length; i++)
-                {
-                    pixels[i] = Color.white;
-                }
-
-                texture.SetPixels(pixels);
-                texture.filterMode = FilterMode.Point;
-                texture.Apply();
-                whiteSprite = Sprite.Create(texture, new Rect(0f, 0f, 4f, 4f), new Vector2(0.5f, 0.5f), 4f);
-                return whiteSprite;
-            }
         }
 
         private void OnValidate()

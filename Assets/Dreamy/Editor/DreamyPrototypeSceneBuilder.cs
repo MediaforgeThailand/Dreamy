@@ -15,10 +15,12 @@ namespace Dreamy.Editor
     {
         private const string ScenePath = "Assets/Dreamy/Scenes/DreamyMobilePrototype.unity";
         private const string Scene2Path = "Assets/Dreamy/Scenes/DreamyScene2.unity";
+        private const string VillageScenePath = "Assets/Dreamy/Scenes/DreamyVillageMap.unity";
         private const string GeneratedAssetFolder = "Assets/Dreamy/Generated";
         private const string FirstSceneMapPath = "Assets/Dreamy/Maps/FirstScene/FirstSceneMap.png";
         private const string FirstSceneBlockedMarkupPath = "Assets/Dreamy/Maps/FirstScene/FirstSceneBlockedMarkup.png";
         private const string Scene2CompositeMapPath = "Assets/Dreamy/Maps/Scene2/map-composite.png";
+        private const string VillageMapPath = "Assets/Dreamy/Maps/VillageMap/VillageMap.png";
         private const string ImportedMapPrefabPath = "Assets/Spritefusion/Maps/map.prefab";
         private const float PaintedMapPixelsPerUnit = 100f;
         private const int MarkupCollisionCellPixels = 96;
@@ -129,6 +131,49 @@ namespace Dreamy.Editor
             Debug.Log("[Dreamy] Scene 2 built at " + Scene2Path);
         }
 
+        [MenuItem("Dreamy/Build Village Map")]
+        public static void BuildVillageMap()
+        {
+            EnsureFolders();
+            ApplyMobileProjectSettings();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            if (!File.Exists(ToAbsolutePath(VillageMapPath)))
+            {
+                Debug.LogError("[Dreamy] Missing village map: " + VillageMapPath);
+                return;
+            }
+
+            Sprite[] idleFrames = CreateHorizontalFrameSprites(
+                "Assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle.png",
+                "PawnIdle",
+                8);
+            Sprite[] walkFrames = CreateHorizontalFrameSprites(
+                "Assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run.png",
+                "PawnRun",
+                6);
+
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            scene.name = "DreamyVillageMap";
+
+            GameObject systems = new GameObject("Game Systems");
+            systems.AddComponent<DreamyGameState>();
+            systems.AddComponent<DreamyMobileOrientation>();
+
+            Camera camera = CreateCamera();
+            DreamyVirtualJoystick joystick = CreateHud();
+            CreateVillageMapWorld(camera, joystick, idleFrames, walkFrames);
+            ValidatePlayerFrames(idleFrames, walkFrames);
+
+            EditorSceneManager.SaveScene(scene, VillageScenePath);
+            EnsureBuildSettingsScene(ScenePath);
+            EnsureBuildSettingsScene(VillageScenePath);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[Dreamy] Village map built at " + VillageScenePath);
+        }
+
         private static void EnsureFolders()
         {
             CreateFolder("Assets", "Dreamy");
@@ -139,6 +184,7 @@ namespace Dreamy.Editor
             CreateFolder("Assets/Dreamy", "Maps");
             CreateFolder("Assets/Dreamy/Maps", "FirstScene");
             CreateFolder("Assets/Dreamy/Maps", "Scene2");
+            CreateFolder("Assets/Dreamy/Maps", "VillageMap");
         }
 
         private static void CreateFolder(string parent, string child)
@@ -285,6 +331,36 @@ namespace Dreamy.Editor
             camera.transform.position = new Vector3(playerStart.x, playerStart.y, camera.transform.position.z);
         }
 
+        private static void CreateVillageMapWorld(Camera camera, DreamyVirtualJoystick joystick, Sprite[] idleFrames, Sprite[] walkFrames)
+        {
+            GameObject world = new GameObject("World");
+            GameObject levelRoot = new GameObject("Level Root");
+            levelRoot.transform.SetParent(world.transform);
+
+            if (!CreateSingleImageMap(levelRoot.transform, VillageMapPath, "Village Painted Map", out Bounds mapBounds))
+            {
+                CreateWaterBorder(levelRoot.transform);
+                CreateGroundGrid(levelRoot.transform);
+                mapBounds = new Bounds(Vector3.zero, new Vector3(8f, 10f, 0f));
+            }
+
+            const float playerEdgeMargin = 0.65f;
+            Vector2 playerMinBounds = new Vector2(mapBounds.min.x + playerEdgeMargin, mapBounds.min.y + playerEdgeMargin);
+            Vector2 playerMaxBounds = new Vector2(mapBounds.max.x - playerEdgeMargin, mapBounds.max.y - playerEdgeMargin);
+            Vector2 playerStart = new Vector2(mapBounds.center.x - mapBounds.extents.x * 0.03f, mapBounds.center.y - mapBounds.extents.y * 0.10f);
+            playerStart.x = Mathf.Clamp(playerStart.x, playerMinBounds.x, playerMaxBounds.x);
+            playerStart.y = Mathf.Clamp(playerStart.y, playerMinBounds.y, playerMaxBounds.y);
+
+            GameObject player = CreatePlayer(world.transform, joystick, idleFrames, walkFrames, playerStart, playerMinBounds, playerMaxBounds);
+            DreamyCameraFollow follow = camera.GetComponent<DreamyCameraFollow>();
+            float orthographicSize = CalculateVillageMapCameraSize(mapBounds);
+            camera.orthographicSize = orthographicSize;
+            follow.Configure(orthographicSize, false, false, 0.14f, 130f);
+            follow.Target = player.transform;
+            follow.SetBounds(new Vector2(mapBounds.min.x, mapBounds.min.y), new Vector2(mapBounds.max.x, mapBounds.max.y));
+            camera.transform.position = new Vector3(playerStart.x, playerStart.y, camera.transform.position.z);
+        }
+
         private static bool CreateScene2CompositeMap(Transform parent, out Bounds mapBounds)
         {
             mapBounds = new Bounds(Vector3.zero, Vector3.zero);
@@ -312,12 +388,47 @@ namespace Dreamy.Editor
             return true;
         }
 
+        private static bool CreateSingleImageMap(Transform parent, string mapPath, string objectName, out Bounds mapBounds)
+        {
+            mapBounds = new Bounds(Vector3.zero, Vector3.zero);
+            if (!File.Exists(ToAbsolutePath(mapPath)))
+            {
+                return false;
+            }
+
+            ImportPaintedMapSprite(mapPath, PaintedMapPixelsPerUnit);
+            Sprite mapSprite = AssetDatabase.LoadAssetAtPath<Sprite>(mapPath);
+            if (mapSprite == null)
+            {
+                Debug.LogWarning("[Dreamy] Could not load single image map: " + mapPath);
+                return false;
+            }
+
+            GameObject map = new GameObject(objectName);
+            map.transform.SetParent(parent, false);
+            SpriteRenderer renderer = map.AddComponent<SpriteRenderer>();
+            renderer.sprite = mapSprite;
+            renderer.sortingOrder = -100;
+
+            mapBounds = renderer.bounds;
+            Debug.Log("[Dreamy] Using single image map at " + mapPath + " with size " + mapBounds.size);
+            return true;
+        }
+
         private static float CalculateScene2CameraSize(Bounds mapBounds)
         {
             const float wideMobileLandscapeAspect = 20f / 9f;
             float sizeByHeight = mapBounds.extents.y * 0.86f;
             float sizeByWidth = mapBounds.extents.x / wideMobileLandscapeAspect * 0.96f;
             return Mathf.Clamp(Mathf.Min(sizeByHeight, sizeByWidth), 2.8f, 4.4f);
+        }
+
+        private static float CalculateVillageMapCameraSize(Bounds mapBounds)
+        {
+            const float wideMobileLandscapeAspect = 20f / 9f;
+            float sizeByHeight = mapBounds.extents.y * 0.48f;
+            float sizeByWidth = mapBounds.extents.x / wideMobileLandscapeAspect * 0.62f;
+            return Mathf.Clamp(Mathf.Min(sizeByHeight, sizeByWidth), 4.8f, 6.2f);
         }
 
         private static bool CreatePaintedFirstSceneMap(Transform parent, out Bounds mapBounds)
@@ -834,7 +945,8 @@ namespace Dreamy.Editor
             joystickRoot.transform.SetParent(parent, false);
             Image rootImage = joystickRoot.AddComponent<Image>();
             rootImage.sprite = LoadSprite("Assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Buttons/BigBlueButton_Regular.png");
-            rootImage.color = new Color(1f, 1f, 1f, 0.5f);
+            rootImage.color = new Color(1f, 1f, 1f, 0f);
+            rootImage.raycastTarget = true;
 
             RectTransform rootRect = joystickRoot.GetComponent<RectTransform>();
             rootRect.anchorMin = new Vector2(0f, 0f);
@@ -847,8 +959,9 @@ namespace Dreamy.Editor
             handle.transform.SetParent(joystickRoot.transform, false);
             Image handleImage = handle.AddComponent<Image>();
             handleImage.sprite = LoadSprite("Assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Buttons/SmallBlueRoundButton_Regular.png");
-            handleImage.color = new Color(1f, 1f, 1f, 0.86f);
+            handleImage.color = new Color(1f, 1f, 1f, 0.94f);
             handleImage.raycastTarget = false;
+            handleImage.preserveAspect = true;
 
             RectTransform handleRect = handle.GetComponent<RectTransform>();
             handleRect.anchorMin = new Vector2(0.5f, 0.5f);

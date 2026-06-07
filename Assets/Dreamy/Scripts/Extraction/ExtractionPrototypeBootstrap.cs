@@ -320,7 +320,8 @@ namespace Dreamy.Extraction
             joystickRoot.transform.SetParent(parent, false);
             Image rootImage = joystickRoot.AddComponent<Image>();
             rootImage.sprite = ExtractionPlaceholderSprite.Get(new Color(1f, 1f, 1f, 0.25f));
-            rootImage.color = new Color(1f, 1f, 1f, 0.25f);
+            rootImage.color = new Color(1f, 1f, 1f, 0f);
+            rootImage.raycastTarget = true;
 
             RectTransform rootRect = joystickRoot.GetComponent<RectTransform>();
             rootRect.anchorMin = Vector2.zero;
@@ -333,8 +334,9 @@ namespace Dreamy.Extraction
             handle.transform.SetParent(joystickRoot.transform, false);
             Image handleImage = handle.AddComponent<Image>();
             handleImage.sprite = ExtractionPlaceholderSprite.Get(new Color(0.4f, 0.7f, 1f, 0.9f));
-            handleImage.color = new Color(0.4f, 0.7f, 1f, 0.9f);
+            handleImage.color = new Color(0.4f, 0.7f, 1f, 0.94f);
             handleImage.raycastTarget = false;
+            handleImage.preserveAspect = true;
 
             RectTransform handleRect = handle.GetComponent<RectTransform>();
             handleRect.anchorMin = new Vector2(0.5f, 0.5f);

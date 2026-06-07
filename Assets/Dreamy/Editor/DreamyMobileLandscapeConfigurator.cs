@@ -126,6 +126,15 @@ namespace Dreamy.Editor
             }
 
             RectTransform rootRect = joystick.GetComponent<RectTransform>();
+            UnityEngine.UI.Image rootImage = joystick.GetComponent<UnityEngine.UI.Image>();
+            if (rootImage != null)
+            {
+                Color color = rootImage.color;
+                color.a = 0f;
+                rootImage.color = color;
+                rootImage.raycastTarget = true;
+            }
+
             if (rootRect != null)
             {
                 rootRect.anchorMin = new Vector2(0f, 0f);
@@ -140,6 +149,16 @@ namespace Dreamy.Editor
             if (handle != null)
             {
                 handleRect = handle.GetComponent<RectTransform>();
+                UnityEngine.UI.Image handleImage = handle.GetComponent<UnityEngine.UI.Image>();
+                if (handleImage != null)
+                {
+                    Color color = handleImage.color;
+                    color.a = Mathf.Max(color.a, 0.94f);
+                    handleImage.color = color;
+                    handleImage.raycastTarget = false;
+                    handleImage.preserveAspect = true;
+                }
+
                 if (handleRect != null)
                 {
                     handleRect.anchorMin = new Vector2(0.5f, 0.5f);

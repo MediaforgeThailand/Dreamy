@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace Dreamy
 {
@@ -7,6 +8,7 @@ namespace Dreamy
     {
         [SerializeField] private RectTransform handle;
         [SerializeField] private float radius = 96f;
+        [SerializeField] private bool showOnlyHandle = true;
 
         private RectTransform rectTransform;
         private Vector2 direction;
@@ -16,6 +18,7 @@ namespace Dreamy
         private void Awake()
         {
             rectTransform = (RectTransform)transform;
+            ApplyMinimalVisuals();
             CenterHandle();
         }
 
@@ -23,7 +26,14 @@ namespace Dreamy
         {
             handle = handleRectTransform;
             radius = Mathf.Max(joystickRadius, 1f);
+            ApplyMinimalVisuals();
             CenterHandle();
+        }
+
+        private void OnValidate()
+        {
+            radius = Mathf.Max(radius, 1f);
+            ApplyMinimalVisuals();
         }
 
         public void OnPointerDown(PointerEventData eventData)
@@ -68,6 +78,36 @@ namespace Dreamy
             if (handle != null)
             {
                 handle.anchoredPosition = Vector2.zero;
+            }
+        }
+
+        private void ApplyMinimalVisuals()
+        {
+            if (!showOnlyHandle)
+            {
+                return;
+            }
+
+            Image background = GetComponent<Image>();
+            if (background != null)
+            {
+                Color color = background.color;
+                color.a = 0f;
+                background.color = color;
+                background.raycastTarget = true;
+            }
+
+            if (handle != null)
+            {
+                Image handleImage = handle.GetComponent<Image>();
+                if (handleImage != null)
+                {
+                    handleImage.raycastTarget = false;
+                    handleImage.preserveAspect = true;
+                    Color color = handleImage.color;
+                    color.a = Mathf.Max(color.a, 0.92f);
+                    handleImage.color = color;
+                }
             }
         }
     }
