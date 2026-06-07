@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c06db160e8276a34ba85b93fa70fc902, type: 3}
+  m_Name: goblin_raiders_pig
+  m_EditorClassIdentifier: Assembly-CSharp::Dreamy.DreamyMonsterDefinition
+  monsterId: goblin_raiders_pig
+  displayName: Pig
+  level: 12
+  maxHealth: 57
+  damage: 9
+  chaseSpeed: 2.1812
+  detectionRange: 7.5
+  attackRange: 0.9312
+  knockbackResistance: 2
+  pixelsPerUnit: 192
+  visualScale: 1.45
+  idleSheet: {fileID: 2800000, guid: 5319a2c473a0287448016abaf233ab52, type: 3}
+  runSheet: {fileID: 2800000, guid: d6be70d6a32f22143859f7730a8f4577, type: 3}
+  walkSheet: {fileID: 0}
+  attackSheet: {fileID: 0}
+  hitSheet: {fileID: 0}
+  deathSheet: {fileID: 0}
+  idleFrameCount: 10
+  runFrameCount: 4
+  walkFrameCount: 1
+  attackFrameCount: 1
+  hitFrameCount: 1
+  deathFrameCount: 1
+  idleFramesPerSecond: 6
+  moveFramesPerSecond: 8
+  attackFramesPerSecond: 10

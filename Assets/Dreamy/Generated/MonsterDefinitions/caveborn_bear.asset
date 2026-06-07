@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c06db160e8276a34ba85b93fa70fc902, type: 3}
+  m_Name: caveborn_bear
+  m_EditorClassIdentifier: Assembly-CSharp::Dreamy.DreamyMonsterDefinition
+  monsterId: caveborn_bear
+  displayName: Bear
+  level: 16
+  maxHealth: 65
+  damage: 10
+  chaseSpeed: 2.0916
+  detectionRange: 7.5
+  attackRange: 1.0016
+  knockbackResistance: 2.6666667
+  pixelsPerUnit: 192
+  visualScale: 1.45
+  idleSheet: {fileID: 2800000, guid: 321d84ada5938a14c817e7d08ad7a9d0, type: 3}
+  runSheet: {fileID: 2800000, guid: 197155c8bb3857349a228affd474b7f8, type: 3}
+  walkSheet: {fileID: 0}
+  attackSheet: {fileID: 2800000, guid: 192813459c9a5c94f9f767c754478bab, type: 3}
+  hitSheet: {fileID: 0}
+  deathSheet: {fileID: 0}
+  idleFrameCount: 8
+  runFrameCount: 5
+  walkFrameCount: 1
+  attackFrameCount: 9
+  hitFrameCount: 1
+  deathFrameCount: 1
+  idleFramesPerSecond: 6
+  moveFramesPerSecond: 8
+  attackFramesPerSecond: 10

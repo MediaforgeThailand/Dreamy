@@ -5,9 +5,14 @@ namespace Dreamy
 {
     [RequireComponent(typeof(SpriteRenderer))]
     [RequireComponent(typeof(Rigidbody2D))]
+    [RequireComponent(typeof(CircleCollider2D))]
+    [RequireComponent(typeof(DreamyCharacterStats))]
+    [RequireComponent(typeof(DreamyInventory))]
+    [RequireComponent(typeof(DreamyExperience))]
     public sealed class DreamyMobilePlayer : MonoBehaviour
     {
-        private const int RuntimeSortingOrder = 11;
+        private const int RuntimeSortingOrder = 100;
+        private const float RuntimeSortingUnitsPerWorldUnit = 10f;
         public const float DefaultMoveSpeed = 4.2f;
 
         [SerializeField] private float moveSpeed = DefaultMoveSpeed;
@@ -18,12 +23,26 @@ namespace Dreamy
         [SerializeField] private Sprite[] walkFrames;
         [SerializeField] private float idleFramesPerSecond = 4f;
         [SerializeField] private float walkFramesPerSecond = 8f;
+        [SerializeField] private float dodgeSpeed = 10.5f;
+        [SerializeField] private float dodgeDuration = 0.18f;
+        [SerializeField] private float dodgeCooldown = 0.55f;
+        [SerializeField] private float dodgeStaminaCost = 18f;
 
         private bool wasMoving;
         private float animationTime;
         private Vector2 movementInput;
+        private Vector2 lastMoveDirection = Vector2.down;
+        private Vector2 dodgeDirection = Vector2.down;
+        private float dodgeEndsAt;
+        private float nextDodgeTime;
+        private bool queuedDodge;
         private Rigidbody2D rigidbody2d;
         private SpriteRenderer spriteRenderer;
+        private DreamyCharacterStats characterStats;
+        private DreamyInventory inventory;
+        private DreamyExperience experience;
+        private Collider2D bodyCollider;
+        private float nextCollisionRefresh;
 
         public float MoveSpeed
         {
@@ -31,33 +50,63 @@ namespace Dreamy
             set => moveSpeed = Mathf.Max(0f, value);
         }
 
+        public DreamyCharacterStats CharacterStats => characterStats;
+        public DreamyInventory Inventory => inventory;
+        public DreamyExperience Experience => experience;
+
         private void Awake()
         {
             spriteRenderer = GetComponent<SpriteRenderer>();
             rigidbody2d = GetComponent<Rigidbody2D>();
+            bodyCollider = GetComponent<Collider2D>();
+            characterStats = GetOrAddComponent<DreamyCharacterStats>();
+            inventory = GetOrAddComponent<DreamyInventory>();
+            experience = GetOrAddComponent<DreamyExperience>();
             if (rigidbody2d == null)
             {
                 rigidbody2d = gameObject.AddComponent<Rigidbody2D>();
             }
 
-            if (spriteRenderer != null && spriteRenderer.sortingOrder >= 100)
+            if (bodyCollider == null)
             {
-                spriteRenderer.sortingOrder = RuntimeSortingOrder;
+                CircleCollider2D circleCollider = gameObject.AddComponent<CircleCollider2D>();
+                circleCollider.radius = 0.32f;
+                bodyCollider = circleCollider;
+            }
+
+            bodyCollider.isTrigger = false;
+            if (spriteRenderer != null)
+            {
+                GetOrAddComponent<DreamyYSortSprite>().Configure(RuntimeSortingOrder, RuntimeSortingUnitsPerWorldUnit);
             }
 
             transform.localScale = Vector3.one;
-            rigidbody2d.gravityScale = 0f;
-            rigidbody2d.freezeRotation = true;
-            rigidbody2d.interpolation = RigidbodyInterpolation2D.Interpolate;
-            rigidbody2d.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            DreamyCharacterCollisionUtility.NormalizeTopDownBody(rigidbody2d);
             ApplyFrame(idleFrames, 0);
         }
 
         private void Update()
         {
             movementInput = ReadMovementInput();
-            Animate(movementInput);
+            if (movementInput.sqrMagnitude >= 0.01f)
+            {
+                lastMoveDirection = movementInput.normalized;
+            }
+
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+                QueueDodge();
+            }
+
+            if (queuedDodge)
+            {
+                queuedDodge = false;
+                TryStartDodge();
+            }
+
+            Animate(IsDodging() ? dodgeDirection : movementInput);
             TryCollectNearbyResource();
+            RefreshCharacterCollisionIgnores();
         }
 
         private void Start()
@@ -67,7 +116,13 @@ namespace Dreamy
 
         private void FixedUpdate()
         {
-            Move(movementInput);
+            if (IsDodging())
+            {
+                Move(dodgeDirection, dodgeSpeed, true);
+                return;
+            }
+
+            Move(movementInput, moveSpeed, false);
         }
 
         public void Bind(DreamyVirtualJoystick movementJoystick, Sprite[] idleSprites, Sprite[] walkSprites)
@@ -84,9 +139,18 @@ namespace Dreamy
             maxBounds = maximum;
         }
 
+        public void QueueDodge()
+        {
+            queuedDodge = true;
+        }
+
         private void OnValidate()
         {
             moveSpeed = Mathf.Max(0f, moveSpeed);
+            dodgeSpeed = Mathf.Max(0f, dodgeSpeed);
+            dodgeDuration = Mathf.Max(0f, dodgeDuration);
+            dodgeCooldown = Mathf.Max(0f, dodgeCooldown);
+            dodgeStaminaCost = Mathf.Max(0f, dodgeStaminaCost);
         }
 
         private Vector2 ReadMovementInput()
@@ -101,15 +165,45 @@ namespace Dreamy
             return Vector2.ClampMagnitude(input, 1f);
         }
 
-        private void Move(Vector2 input)
+        private bool TryStartDodge()
+        {
+            if (Time.time < nextDodgeTime || characterStats == null || !characterStats.IsAlive)
+            {
+                return false;
+            }
+
+            if (!characterStats.TrySpendStamina(dodgeStaminaCost))
+            {
+                return false;
+            }
+
+            dodgeDirection = movementInput.sqrMagnitude >= 0.01f ? movementInput.normalized : lastMoveDirection;
+            if (dodgeDirection.sqrMagnitude < 0.01f)
+            {
+                dodgeDirection = Vector2.down;
+            }
+
+            dodgeEndsAt = Time.time + dodgeDuration;
+            nextDodgeTime = Time.time + dodgeCooldown;
+            return true;
+        }
+
+        private bool IsDodging()
+        {
+            return Time.time < dodgeEndsAt;
+        }
+
+        private void Move(Vector2 input, float speed, bool normalizeInput)
         {
             if (input.sqrMagnitude < 0.0025f)
             {
+                DreamyCharacterCollisionUtility.StopBodyDrift(rigidbody2d);
                 return;
             }
 
+            Vector2 motion = normalizeInput ? input.normalized : input;
             Vector2 current = rigidbody2d != null ? rigidbody2d.position : (Vector2)transform.position;
-            Vector2 next = current + input * (moveSpeed * Time.fixedDeltaTime);
+            Vector2 next = current + motion * (speed * Time.fixedDeltaTime);
             next.x = Mathf.Clamp(next.x, minBounds.x, maxBounds.x);
             next.y = Mathf.Clamp(next.y, minBounds.y, maxBounds.y);
 
@@ -126,6 +220,17 @@ namespace Dreamy
             {
                 spriteRenderer.flipX = input.x < 0f;
             }
+        }
+
+        private void RefreshCharacterCollisionIgnores()
+        {
+            if (Time.time < nextCollisionRefresh)
+            {
+                return;
+            }
+
+            nextCollisionRefresh = Time.time + 0.45f;
+            DreamyCharacterCollisionUtility.IgnoreCollisionWithAll<DreamyMonsterController>(this);
         }
 
         private void Animate(Vector2 input)
@@ -167,6 +272,18 @@ namespace Dreamy
             {
                 nodes[i].TryCollect(transform);
             }
+
+            DreamyResourcePickup[] pickups = FindObjectsByType<DreamyResourcePickup>(FindObjectsInactive.Exclude);
+            for (int i = 0; i < pickups.Length; i++)
+            {
+                pickups[i].TryPickup(transform);
+            }
+        }
+
+        private T GetOrAddComponent<T>() where T : Component
+        {
+            T component = GetComponent<T>();
+            return component != null ? component : gameObject.AddComponent<T>();
         }
 
         private static void ConfigureImportedMapColliders()

@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "totalObjects": 1,
+  "objects": [
+    {
+      "id": "79f70835-d9a9-4734-b730-1a857bdc9aa3",
+      "name": "Object 0",
+      "filename": "79f70835-d9a9-4734-b730-1a857bdc9aa3.png",
+      "boundingBox": {
+        "x": 469,
+        "y": 375,
+        "width": 70,
+        "height": 75
+      },
+      "layer": 1,
+      "visible": true,
+      "locked": false,
+      "description": "magic crystal",
+      "metadata": {
+        "generatedAt": "2026-06-05T20:13:00.677Z"
+      },
+      "isProgress": false
+    }
+  ]
+}

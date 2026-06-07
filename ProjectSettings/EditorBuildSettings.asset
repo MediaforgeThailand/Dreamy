@@ -8,5 +8,14 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Dreamy/Scenes/DreamyMobilePrototype.unity
     guid: ee273b918f1cbc04297a39e78d89293b
+  - enabled: 1
+    path: Assets/Dreamy/Scenes/DreamyScene2.unity
+    guid: e08e7af6c1774805ac7aa9adbbe907fd
+  - enabled: 1
+    path: Assets/Dreamy/Scenes/Prototype/Prototype_Base.unity
+    guid: 38a6c6364546c4047952de098a4500c5
+  - enabled: 1
+    path: Assets/Dreamy/Scenes/Prototype/Prototype_Run.unity
+    guid: 91a0114de3f9268409cd753c447a7784
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}

@@ -482,6 +482,9 @@ GameObject:
   - component: {fileID: 208938473}
   - component: {fileID: 208938472}
   - component: {fileID: 208938471}
+  - component: {fileID: 208938475}
+  - component: {fileID: 208938476}
+  - component: {fileID: 208938477}
   m_Layer: 0
   m_Name: Player Pawn
   m_TagString: Untagged
@@ -538,6 +541,54 @@ MonoBehaviour:
   - {fileID: 21300000, guid: 6509b9d3add2fbe498f23134ccc8a2ed, type: 3}
   idleFramesPerSecond: 4
   walkFramesPerSecond: 8
+--- !u!114 &208938475
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 208938469}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1b6e4c3d69d4d8fabd1841fa3b73672, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Dreamy.DreamyCharacterStats
+  maxHealth: 100
+  currentHealth: 100
+  maxStamina: 100
+  currentStamina: 100
+  staminaRegenPerSecond: 12
+  damage: 10
+--- !u!114 &208938476
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 208938469}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b0c03738136f47d8b9fbbd43c18abaf7, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Dreamy.DreamyInventory
+  maxSlots: 24
+  items: []
+--- !u!114 &208938477
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 208938469}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d639bb49c5974db6aa432d690ce11e79, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Dreamy.DreamyExperience
+  level: 1
+  currentExp: 0
+  expToNextLevel: 100
+  expGrowthMultiplier: 1.25
 --- !u!50 &208938472
 Rigidbody2D:
   serializedVersion: 5

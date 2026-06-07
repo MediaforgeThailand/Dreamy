@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c06db160e8276a34ba85b93fa70fc902, type: 3}
+  m_Name: pirate_fish_bomb
+  m_EditorClassIdentifier: Assembly-CSharp::Dreamy.DreamyMonsterDefinition
+  monsterId: pirate_fish_bomb
+  displayName: Bomb
+  level: 8
+  maxHealth: 49
+  damage: 8
+  chaseSpeed: 2.25
+  detectionRange: 7.5
+  attackRange: 0.8608
+  knockbackResistance: 1.3333334
+  pixelsPerUnit: 192
+  visualScale: 1.45
+  idleSheet: {fileID: 2800000, guid: 5b88ae3e29946b0438213388a1f1e8ea, type: 3}
+  runSheet: {fileID: 0}
+  walkSheet: {fileID: 0}
+  attackSheet: {fileID: 0}
+  hitSheet: {fileID: 0}
+  deathSheet: {fileID: 0}
+  idleFrameCount: 1
+  runFrameCount: 1
+  walkFrameCount: 1
+  attackFrameCount: 1
+  hitFrameCount: 1
+  deathFrameCount: 1
+  idleFramesPerSecond: 6
+  moveFramesPerSecond: 8
+  attackFramesPerSecond: 10

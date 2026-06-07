@@ -1,0 +1,62 @@
+{
+  "version": "1.0.0",
+  "name": "Untitled Map",
+  "exportDate": "2026-06-05T20:21:45.159877Z",
+  "engine": "pixellab-map-editor",
+  "mapConfig": {
+    "tileSize": 16,
+    "dimensions": {
+      "width": 88,
+      "height": 65,
+      "pixelWidth": 1408,
+      "pixelHeight": 1040
+    },
+    "boundingBox": {
+      "maxX": 91,
+      "maxY": 53,
+      "minX": 4,
+      "minY": -11
+    }
+  },
+  "terrains": [
+    {
+      "id": 1,
+      "name": "Tile 1",
+      "color": "hsl(0, 30%, 52%)",
+      "baseTileId": null
+    },
+    {
+      "id": 2,
+      "name": "Tile 2",
+      "color": "hsl(47, 30%, 52%)",
+      "baseTileId": null
+    },
+    {
+      "id": 3,
+      "name": "Tile 3",
+      "color": "hsl(94, 30%, 52%)",
+      "baseTileId": null
+    },
+    {
+      "id": 4,
+      "name": "Tile 4",
+      "color": "hsl(141, 30%, 52%)",
+      "baseTileId": null
+    },
+    {
+      "id": 5,
+      "name": "Tile 5",
+      "color": "hsl(188, 30%, 52%)",
+      "baseTileId": null
+    },
+    {
+      "id": 6,
+      "name": "Tile 6",
+      "color": "hsl(235, 30%, 52%)",
+      "baseTileId": null
+    }
+  ],
+  "tilesets": [],
+  "overlays": [],
+  "background": null
+}

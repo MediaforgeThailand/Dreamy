@@ -8,6 +8,7 @@ namespace Dreamy.Editor
     public static class DreamyEditorOneShotActions
     {
         private const string FirstSceneBuildRequestFileName = "DreamyFirstSceneBuild.request";
+        private const string Scene2BuildRequestFileName = "DreamyScene2Build.request";
         private const string OpenBlockingToolRequestFileName = "DreamyOpenBlockingTool.request";
         private const string ApplyLandscapeRequestFileName = "DreamyApplyLandscape.request";
         private static double nextCheckTime;
@@ -47,9 +48,18 @@ namespace Dreamy.Editor
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;
             string openBlockingToolPath = Path.Combine(projectRoot, "Temp", OpenBlockingToolRequestFileName);
             string applyLandscapePath = Path.Combine(projectRoot, "Temp", ApplyLandscapeRequestFileName);
+            string scene2RequestPath = Path.Combine(projectRoot, "Temp", Scene2BuildRequestFileName);
             string requestPath = Path.Combine(projectRoot, "Temp", FirstSceneBuildRequestFileName);
 
-            if (EditorApplication.isPlayingOrWillChangePlaymode && (File.Exists(openBlockingToolPath) || File.Exists(applyLandscapePath) || File.Exists(requestPath)))
+            if (EditorApplication.isPlaying && File.Exists(scene2RequestPath))
+            {
+                Debug.Log("[Dreamy] Scene 2 build request is waiting; exiting Play Mode first.");
+                EditorApplication.isPlaying = false;
+                return;
+            }
+
+            if (EditorApplication.isPlayingOrWillChangePlaymode
+                && (File.Exists(openBlockingToolPath) || File.Exists(applyLandscapePath) || File.Exists(scene2RequestPath) || File.Exists(requestPath)))
             {
                 return;
             }
@@ -66,6 +76,13 @@ namespace Dreamy.Editor
                 Debug.Log("[Dreamy] One-shot request received: apply mobile landscape layout.");
                 DreamyMobileLandscapeConfigurator.ApplyLandscapeToOpenScene();
                 File.Delete(applyLandscapePath);
+            }
+
+            if (File.Exists(scene2RequestPath))
+            {
+                Debug.Log("[Dreamy] One-shot request received: build scene 2 map.");
+                DreamyPrototypeSceneBuilder.BuildScene2Map();
+                File.Delete(scene2RequestPath);
             }
 
             if (!File.Exists(requestPath))

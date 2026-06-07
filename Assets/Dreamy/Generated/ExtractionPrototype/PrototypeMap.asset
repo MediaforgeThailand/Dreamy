@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: af16ebb365c140dbbd67227c8e71eea0, type: 3}
+  m_Name: PrototypeMap
+  m_EditorClassIdentifier: Assembly-CSharp::Dreamy.Extraction.ExtractionMapData
+  mapId: 
+  displayName: 
+  startRoom: {fileID: 11400000, guid: f46e48e8c3e715f468d509f059e18fb2, type: 2}
+  roomPool:
+  - {fileID: 11400000, guid: 5529bd4b94e8ef445a517c3931a7b6a7, type: 2}
+  - {fileID: 11400000, guid: 6e28de8c19111a84cb7801fd9f9fd933, type: 2}
+  - {fileID: 11400000, guid: 298b786ad119e1d4db754577fa420acd, type: 2}
+  bossRoom: {fileID: 11400000, guid: a09a3d70b19055e4fb329c0c6ffda001, type: 2}
+  unlockRequirementItem: {fileID: 0}
+  choicesPerRoom: 3
+  roomsBeforeBoss: 2

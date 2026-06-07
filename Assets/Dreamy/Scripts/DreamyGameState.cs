@@ -22,6 +22,7 @@ namespace Dreamy
             }
 
             Instance = this;
+            DontDestroyOnLoad(gameObject);
         }
 
         public void AddResource(DreamyResourceType type, int amount)

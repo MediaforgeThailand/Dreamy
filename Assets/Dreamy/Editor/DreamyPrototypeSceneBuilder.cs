@@ -14,9 +14,11 @@ namespace Dreamy.Editor
     public static class DreamyPrototypeSceneBuilder
     {
         private const string ScenePath = "Assets/Dreamy/Scenes/DreamyMobilePrototype.unity";
+        private const string Scene2Path = "Assets/Dreamy/Scenes/DreamyScene2.unity";
         private const string GeneratedAssetFolder = "Assets/Dreamy/Generated";
         private const string FirstSceneMapPath = "Assets/Dreamy/Maps/FirstScene/FirstSceneMap.png";
         private const string FirstSceneBlockedMarkupPath = "Assets/Dreamy/Maps/FirstScene/FirstSceneBlockedMarkup.png";
+        private const string Scene2CompositeMapPath = "Assets/Dreamy/Maps/Scene2/map-composite.png";
         private const string ImportedMapPrefabPath = "Assets/Spritefusion/Maps/map.prefab";
         private const float PaintedMapPixelsPerUnit = 100f;
         private const int MarkupCollisionCellPixels = 96;
@@ -71,10 +73,7 @@ namespace Dreamy.Editor
             ValidatePlayerFrames(idleFrames, walkFrames);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
-            EditorBuildSettings.scenes = new[]
-            {
-                new EditorBuildSettingsScene(ScenePath, true)
-            };
+            EnsureBuildSettingsScene(ScenePath);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -87,6 +86,49 @@ namespace Dreamy.Editor
             BuildMobilePrototypeScene();
         }
 
+        [MenuItem("Dreamy/Build Scene 2 Map")]
+        public static void BuildScene2Map()
+        {
+            EnsureFolders();
+            ApplyMobileProjectSettings();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            if (!File.Exists(ToAbsolutePath(Scene2CompositeMapPath)))
+            {
+                Debug.LogError("[Dreamy] Missing scene 2 composite map: " + Scene2CompositeMapPath);
+                return;
+            }
+
+            Sprite[] idleFrames = CreateHorizontalFrameSprites(
+                "Assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle.png",
+                "PawnIdle",
+                8);
+            Sprite[] walkFrames = CreateHorizontalFrameSprites(
+                "Assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run.png",
+                "PawnRun",
+                6);
+
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            scene.name = "DreamyScene2";
+
+            GameObject systems = new GameObject("Game Systems");
+            systems.AddComponent<DreamyGameState>();
+            systems.AddComponent<DreamyMobileOrientation>();
+
+            Camera camera = CreateCamera();
+            DreamyVirtualJoystick joystick = CreateHud();
+            CreateScene2World(camera, joystick, idleFrames, walkFrames);
+            ValidatePlayerFrames(idleFrames, walkFrames);
+
+            EditorSceneManager.SaveScene(scene, Scene2Path);
+            EnsureBuildSettingsScene(ScenePath);
+            EnsureBuildSettingsScene(Scene2Path);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[Dreamy] Scene 2 built at " + Scene2Path);
+        }
+
         private static void EnsureFolders()
         {
             CreateFolder("Assets", "Dreamy");
@@ -96,6 +138,7 @@ namespace Dreamy.Editor
             CreateFolder("Assets/Dreamy", "Generated");
             CreateFolder("Assets/Dreamy", "Maps");
             CreateFolder("Assets/Dreamy/Maps", "FirstScene");
+            CreateFolder("Assets/Dreamy/Maps", "Scene2");
         }
 
         private static void CreateFolder(string parent, string child)
@@ -103,8 +146,31 @@ namespace Dreamy.Editor
             string path = parent + "/" + child;
             if (!AssetDatabase.IsValidFolder(path))
             {
+                if (Directory.Exists(ToAbsolutePath(path)))
+                {
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                    return;
+                }
+
                 AssetDatabase.CreateFolder(parent, child);
             }
+        }
+
+        private static void EnsureBuildSettingsScene(string scenePath)
+        {
+            List<EditorBuildSettingsScene> scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
+            for (int i = 0; i < scenes.Count; i++)
+            {
+                if (scenes[i].path == scenePath)
+                {
+                    scenes[i] = new EditorBuildSettingsScene(scenePath, true);
+                    EditorBuildSettings.scenes = scenes.ToArray();
+                    return;
+                }
+            }
+
+            scenes.Add(new EditorBuildSettingsScene(scenePath, true));
+            EditorBuildSettings.scenes = scenes.ToArray();
         }
 
         private static void ApplyMobileProjectSettings()
@@ -187,6 +253,71 @@ namespace Dreamy.Editor
             follow.Target = player.transform;
             follow.SetBounds(playerMinBounds, playerMaxBounds);
             camera.transform.position = new Vector3(playerStart.x, playerStart.y, camera.transform.position.z);
+        }
+
+        private static void CreateScene2World(Camera camera, DreamyVirtualJoystick joystick, Sprite[] idleFrames, Sprite[] walkFrames)
+        {
+            GameObject world = new GameObject("World");
+            GameObject levelRoot = new GameObject("Level Root");
+            levelRoot.transform.SetParent(world.transform);
+
+            if (!CreateScene2CompositeMap(levelRoot.transform, out Bounds mapBounds))
+            {
+                CreateWaterBorder(levelRoot.transform);
+                CreateGroundGrid(levelRoot.transform);
+                mapBounds = new Bounds(Vector3.zero, new Vector3(8f, 10f, 0f));
+            }
+
+            const float playerEdgeMargin = 0.5f;
+            Vector2 playerMinBounds = new Vector2(mapBounds.min.x + playerEdgeMargin, mapBounds.min.y + playerEdgeMargin);
+            Vector2 playerMaxBounds = new Vector2(mapBounds.max.x - playerEdgeMargin, mapBounds.max.y - playerEdgeMargin);
+            Vector2 playerStart = new Vector2(mapBounds.center.x, mapBounds.center.y - mapBounds.extents.y * 0.22f);
+            playerStart.x = Mathf.Clamp(playerStart.x, playerMinBounds.x, playerMaxBounds.x);
+            playerStart.y = Mathf.Clamp(playerStart.y, playerMinBounds.y, playerMaxBounds.y);
+
+            GameObject player = CreatePlayer(world.transform, joystick, idleFrames, walkFrames, playerStart, playerMinBounds, playerMaxBounds);
+            DreamyCameraFollow follow = camera.GetComponent<DreamyCameraFollow>();
+            float orthographicSize = CalculateScene2CameraSize(mapBounds);
+            camera.orthographicSize = orthographicSize;
+            follow.Configure(orthographicSize, false, false, 0.14f, 130f);
+            follow.Target = player.transform;
+            follow.SetBounds(new Vector2(mapBounds.min.x, mapBounds.min.y), new Vector2(mapBounds.max.x, mapBounds.max.y));
+            camera.transform.position = new Vector3(playerStart.x, playerStart.y, camera.transform.position.z);
+        }
+
+        private static bool CreateScene2CompositeMap(Transform parent, out Bounds mapBounds)
+        {
+            mapBounds = new Bounds(Vector3.zero, Vector3.zero);
+            if (!File.Exists(ToAbsolutePath(Scene2CompositeMapPath)))
+            {
+                return false;
+            }
+
+            ImportSprite(Scene2CompositeMapPath, PaintedMapPixelsPerUnit);
+            Sprite mapSprite = AssetDatabase.LoadAssetAtPath<Sprite>(Scene2CompositeMapPath);
+            if (mapSprite == null)
+            {
+                Debug.LogWarning("[Dreamy] Could not load scene 2 map: " + Scene2CompositeMapPath);
+                return false;
+            }
+
+            GameObject map = new GameObject("Scene 2 Composite Map");
+            map.transform.SetParent(parent, false);
+            SpriteRenderer renderer = map.AddComponent<SpriteRenderer>();
+            renderer.sprite = mapSprite;
+            renderer.sortingOrder = -100;
+
+            mapBounds = renderer.bounds;
+            Debug.Log("[Dreamy] Using scene 2 map at " + Scene2CompositeMapPath + " with size " + mapBounds.size);
+            return true;
+        }
+
+        private static float CalculateScene2CameraSize(Bounds mapBounds)
+        {
+            const float wideMobileLandscapeAspect = 20f / 9f;
+            float sizeByHeight = mapBounds.extents.y * 0.86f;
+            float sizeByWidth = mapBounds.extents.x / wideMobileLandscapeAspect * 0.96f;
+            return Mathf.Clamp(Mathf.Min(sizeByHeight, sizeByWidth), 2.8f, 4.4f);
         }
 
         private static bool CreatePaintedFirstSceneMap(Transform parent, out Bounds mapBounds)
@@ -562,6 +693,10 @@ namespace Dreamy.Editor
 
             CircleCollider2D collider = player.AddComponent<CircleCollider2D>();
             collider.radius = 0.32f;
+
+            player.AddComponent<DreamyCharacterStats>();
+            player.AddComponent<DreamyInventory>();
+            player.AddComponent<DreamyExperience>();
 
             DreamyMobilePlayer controller = player.AddComponent<DreamyMobilePlayer>();
             controller.Bind(joystick, idleFrames, walkFrames);

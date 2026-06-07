@@ -2,6 +2,8 @@ using UnityEngine;
 
 namespace Dreamy
 {
+    using System;
+
     public enum DreamyResourceType
     {
         Wood,
@@ -14,6 +16,8 @@ namespace Dreamy
         [SerializeField] private DreamyResourceType resourceType;
         [SerializeField] private int amount = 1;
         [SerializeField] private float collectRadius = 0.9f;
+
+        public static event Action<DreamyResourceType, int> ResourceCollected;
 
         private bool collected;
         private SpriteRenderer spriteRenderer;
@@ -41,6 +45,12 @@ namespace Dreamy
 
             collected = true;
             DreamyGameState.Instance?.AddResource(resourceType, amount);
+            ResourceCollected?.Invoke(resourceType, amount);
+            DreamyInventory inventory = collector.GetComponentInParent<DreamyInventory>();
+            if (inventory != null)
+            {
+                inventory.AddItem(ToItemId(resourceType), amount, resourceType.ToString());
+            }
 
             if (spriteRenderer != null)
             {
@@ -48,6 +58,21 @@ namespace Dreamy
             }
 
             return true;
+        }
+
+        private static DreamyItemId ToItemId(DreamyResourceType type)
+        {
+            switch (type)
+            {
+                case DreamyResourceType.Wood:
+                    return DreamyItemId.Wood;
+                case DreamyResourceType.Gold:
+                    return DreamyItemId.Gold;
+                case DreamyResourceType.Food:
+                    return DreamyItemId.Food;
+                default:
+                    return DreamyItemId.Custom;
+            }
         }
     }
 }

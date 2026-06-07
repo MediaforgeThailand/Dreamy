@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86a41999aaca4606999f0eaf5707d560, type: 3}
+  m_Name: DreamyPrototypeVisualCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::Dreamy.DreamyPrototypeVisualCatalog
+  woodSprite: {fileID: 21300000, guid: 38aa7b2d983890b48bbcb668e59e519e, type: 3}
+  goldSprite: {fileID: 21300000, guid: 6fb451aef3b0fe844a78ee20a80f142c, type: 3}
+  foodSprite: {fileID: 21300000, guid: 704f05da6ee7e094a9294483ff9d9be2, type: 3}
+  enemySprite: {fileID: 21300000, guid: d6c1618bd3764674db93aad0fe9f871a, type: 3}
+  enemyIdleSheet: {fileID: 2800000, guid: d6c1618bd3764674db93aad0fe9f871a, type: 3}
+  enemyRunSheet: {fileID: 2800000, guid: 8cc0bd4532036a3488db008e4dea0592, type: 3}
+  enemyAttackSheet: {fileID: 2800000, guid: 4c09776d7735faa46857753e79a10bad, type: 3}
+  uiPanelSprite: {fileID: 21300000, guid: 24273e83ba1f4d049a9d8871f864a345, type: 3}
+  uiSlotSprite: {fileID: 21300000, guid: 46386e07ee484b740a0adc4dbeac9565, type: 3}
+  uiBarBaseSprite: {fileID: 21300000, guid: 0965a3cab6960a04aa56214e50d3919e, type: 3}
+  uiBarFillSprite: {fileID: 21300000, guid: d789d4daabdb24547915026c9ec7a2b8, type: 3}
+  uiRedButtonSprite: {fileID: 21300000, guid: a7a07dd5e47afc9449891246425fd752, type: 3}
+  uiRedButtonPressedSprite: {fileID: 21300000, guid: 25c28bade19314c4b9aeef4b40e7c043, type: 3}
+  uiBlueButtonSprite: {fileID: 21300000, guid: 80266f703cba04140b5d247bff8c8a9c, type: 3}
+  uiBlueButtonPressedSprite: {fileID: 21300000, guid: 65e3e8c2042a54645aedba24a51bb6c2, type: 3}
+  uiAttackIconSprite: {fileID: 21300000, guid: 2cf16bb30a1a6d549af71117c3500c3d, type: 3}
+  uiDodgeIconSprite: {fileID: 21300000, guid: bbd7fa0b4727cb14199e9ac00eb45a5d, type: 3}
+  uiInventoryIconSprite: {fileID: 21300000, guid: d074936d330d45a499dc19a52451e608, type: 3}

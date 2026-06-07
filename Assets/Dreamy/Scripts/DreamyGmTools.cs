@@ -6,12 +6,21 @@ namespace Dreamy
     {
         private const int WindowId = 80421;
         private const float RefreshInterval = 0.5f;
+        private const float WindowWidth = 300f;
+        private const float WindowHeight = 430f;
+        private const float ButtonHeight = 24f;
+        private const float LabelWidth = 104f;
+        private const float SliderWidth = 138f;
 
         [SerializeField] private bool visible;
-        [SerializeField] private Rect windowRect = new Rect(24f, 24f, 360f, 430f);
+        [SerializeField] private Rect windowRect = new Rect(24f, 24f, WindowWidth, WindowHeight);
 
         private DreamyMobilePlayer player;
+        private DreamyCharacterStats characterStats;
+        private DreamyInventory inventory;
+        private DreamyExperience experience;
         private DreamyCameraFollow cameraFollow;
+        private Vector2 scrollPosition;
         private float nextRefreshTime;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -74,7 +83,14 @@ namespace Dreamy
                 return;
             }
 
-            windowRect = GUILayout.Window(WindowId, windowRect, DrawWindow, "GM Tools");
+            KeepWindowOnScreen();
+            windowRect = GUILayout.Window(
+                WindowId,
+                windowRect,
+                DrawWindow,
+                "GM",
+                GUILayout.Width(windowRect.width),
+                GUILayout.Height(windowRect.height));
         }
 
         private void RefreshTargets()
@@ -83,6 +99,36 @@ namespace Dreamy
             if (player == null)
             {
                 player = Object.FindFirstObjectByType<DreamyMobilePlayer>();
+            }
+
+            if (characterStats == null && player != null)
+            {
+                characterStats = player.CharacterStats;
+            }
+
+            if (inventory == null && player != null)
+            {
+                inventory = player.Inventory;
+            }
+
+            if (experience == null && player != null)
+            {
+                experience = player.Experience;
+            }
+
+            if (characterStats == null)
+            {
+                characterStats = Object.FindFirstObjectByType<DreamyCharacterStats>();
+            }
+
+            if (inventory == null)
+            {
+                inventory = Object.FindFirstObjectByType<DreamyInventory>();
+            }
+
+            if (experience == null)
+            {
+                experience = Object.FindFirstObjectByType<DreamyExperience>();
             }
 
             if (cameraFollow == null)
@@ -95,23 +141,32 @@ namespace Dreamy
         {
             RefreshTargets();
 
-            GUILayout.Label("Runtime tuning");
-            GUILayout.Space(6f);
+            GUILayout.Label("Runtime");
+            scrollPosition = GUILayout.BeginScrollView(scrollPosition, GUILayout.Height(windowRect.height - 82f));
 
             DrawPlayerTools();
-            GUILayout.Space(10f);
+            GUILayout.Space(6f);
+            DrawCharacterTools();
+            GUILayout.Space(6f);
+            DrawProgressionTools();
+            GUILayout.Space(6f);
+            DrawInventoryTools();
+            GUILayout.Space(6f);
             DrawCameraTools();
-            GUILayout.Space(10f);
+            GUILayout.EndScrollView();
 
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Hide", GUILayout.Height(34f)))
+            if (GUILayout.Button("Hide", GUILayout.Height(ButtonHeight)))
             {
                 visible = false;
             }
 
-            if (GUILayout.Button("Refresh", GUILayout.Height(34f)))
+            if (GUILayout.Button("Refresh", GUILayout.Height(ButtonHeight)))
             {
                 player = null;
+                characterStats = null;
+                inventory = null;
+                experience = null;
                 cameraFollow = null;
                 RefreshTargets();
             }
@@ -136,16 +191,101 @@ namespace Dreamy
             }
 
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Walk 4.2"))
+            if (GUILayout.Button("Walk", GUILayout.Height(ButtonHeight)))
             {
                 player.MoveSpeed = DreamyMobilePlayer.DefaultMoveSpeed;
             }
 
-            if (GUILayout.Button("Run 7.0"))
+            if (GUILayout.Button("Run", GUILayout.Height(ButtonHeight)))
             {
                 player.MoveSpeed = 7f;
             }
             GUILayout.EndHorizontal();
+        }
+
+        private void DrawCharacterTools()
+        {
+            GUILayout.Label("Character");
+            if (characterStats == null)
+            {
+                GUILayout.Label("No DreamyCharacterStats found.");
+                return;
+            }
+
+            characterStats.MaxHealth = SliderField("Max Health", characterStats.MaxHealth, 1f, 300f);
+            characterStats.CurrentHealth = SliderField("Health", characterStats.CurrentHealth, 0f, characterStats.MaxHealth);
+            characterStats.MaxStamina = SliderField("Max Stamina", characterStats.MaxStamina, 1f, 300f);
+            characterStats.CurrentStamina = SliderField("Stamina", characterStats.CurrentStamina, 0f, characterStats.MaxStamina);
+            characterStats.Damage = SliderField("Damage", characterStats.Damage, 0f, 100f);
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("-10 HP", GUILayout.Height(ButtonHeight)))
+            {
+                characterStats.TakeDamage(10f);
+            }
+
+            if (GUILayout.Button("Restore", GUILayout.Height(ButtonHeight)))
+            {
+                characterStats.CurrentHealth = characterStats.MaxHealth;
+                characterStats.CurrentStamina = characterStats.MaxStamina;
+            }
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawProgressionTools()
+        {
+            GUILayout.Label("Progression");
+            if (experience == null)
+            {
+                GUILayout.Label("No DreamyExperience found.");
+                return;
+            }
+
+            GUILayout.Label($"Level {experience.Level} | EXP {experience.CurrentExp}/{experience.ExpToNextLevel}");
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("+10 EXP", GUILayout.Height(ButtonHeight)))
+            {
+                experience.AddExperience(10);
+            }
+
+            if (GUILayout.Button("+100 EXP", GUILayout.Height(ButtonHeight)))
+            {
+                experience.AddExperience(100);
+            }
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawInventoryTools()
+        {
+            GUILayout.Label("Inventory");
+            if (inventory == null)
+            {
+                GUILayout.Label("No DreamyInventory found.");
+                return;
+            }
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("+Wood", GUILayout.Height(ButtonHeight)))
+            {
+                inventory.AddItem(DreamyItemId.Wood, 1);
+            }
+
+            if (GUILayout.Button("+Gold", GUILayout.Height(ButtonHeight)))
+            {
+                inventory.AddItem(DreamyItemId.Gold, 1);
+            }
+
+            if (GUILayout.Button("+Food", GUILayout.Height(ButtonHeight)))
+            {
+                inventory.AddItem(DreamyItemId.Food, 1);
+            }
+            GUILayout.EndHorizontal();
+
+            for (int i = 0; i < inventory.Items.Count; i++)
+            {
+                DreamyInventorySlot item = inventory.Items[i];
+                GUILayout.Label($"{item.DisplayName}: {item.Quantity}");
+            }
         }
 
         private void DrawCameraTools()
@@ -167,10 +307,18 @@ namespace Dreamy
         private static float SliderField(string label, float value, float min, float max)
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label($"{label}: {value:0.00}", GUILayout.Width(150f));
-            float next = GUILayout.HorizontalSlider(value, min, max, GUILayout.Width(170f));
+            GUILayout.Label($"{label}: {value:0.00}", GUILayout.Width(LabelWidth));
+            float next = GUILayout.HorizontalSlider(value, min, max, GUILayout.Width(SliderWidth));
             GUILayout.EndHorizontal();
             return next;
+        }
+
+        private void KeepWindowOnScreen()
+        {
+            windowRect.width = Mathf.Min(WindowWidth, Mathf.Max(220f, Screen.width - 32f));
+            windowRect.height = Mathf.Min(WindowHeight, Mathf.Max(260f, Screen.height - 32f));
+            windowRect.x = Mathf.Clamp(windowRect.x, 0f, Mathf.Max(0f, Screen.width - windowRect.width));
+            windowRect.y = Mathf.Clamp(windowRect.y, 0f, Mathf.Max(0f, Screen.height - windowRect.height));
         }
     }
 }
