@@ -42,3 +42,4 @@ MonoBehaviour:
   uiAttackIconSprite: {fileID: 21300000, guid: 2cf16bb30a1a6d549af71117c3500c3d, type: 3}
   uiDodgeIconSprite: {fileID: 21300000, guid: bbd7fa0b4727cb14199e9ac00eb45a5d, type: 3}
   uiInventoryIconSprite: {fileID: 21300000, guid: d074936d330d45a499dc19a52451e608, type: 3}
+  craftingBackgroundSprite: {fileID: 21300000, guid: dd8983351b521514d895b6d8340c2f1d, type: 3}

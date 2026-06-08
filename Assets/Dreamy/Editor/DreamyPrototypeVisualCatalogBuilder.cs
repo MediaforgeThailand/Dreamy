@@ -9,6 +9,13 @@ namespace Dreamy.Editor
     {
         private const string ResourcesFolder = "Assets/Resources";
         private const string CatalogPath = ResourcesFolder + "/DreamyPrototypeVisualCatalog.asset";
+        private const string CraftingBackgroundPath = "Assets/Resources/BG_blacksmith.jpg";
+        private static readonly string[] CraftingIconPaths =
+        {
+            "Assets/Resources/Dreamy/Crafting/Icons/Icon_GardenMeal.png",
+            "Assets/Resources/Dreamy/Crafting/Icons/Icon_Crop.png",
+            "Assets/Resources/Dreamy/Crafting/Icons/Icon_Wood.png"
+        };
         private const float WarriorSheetPixelsPerUnit = 128f;
         private const float SampleCharacterPixelsPerUnit = 48f;
         private const float AxionCharacterPixelsPerUnit = 48f;
@@ -60,6 +67,11 @@ namespace Dreamy.Editor
             ConfigureUiSprite("Assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_05.png");
             ConfigureUiSprite("Assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_06.png");
             ConfigureUiSprite("Assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_11.png");
+            ConfigureBackgroundSprite(CraftingBackgroundPath);
+            for (int i = 0; i < CraftingIconPaths.Length; i++)
+            {
+                ConfigureUiSprite(CraftingIconPaths[i]);
+            }
 
             DreamyPrototypeVisualCatalog catalog = AssetDatabase.LoadAssetAtPath<DreamyPrototypeVisualCatalog>(CatalogPath);
             if (catalog == null)
@@ -99,9 +111,31 @@ namespace Dreamy.Editor
             SetSprite(serialized, "uiAttackIconSprite", "Assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_05.png");
             SetSprite(serialized, "uiDodgeIconSprite", "Assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_06.png");
             SetSprite(serialized, "uiInventoryIconSprite", "Assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_11.png");
+            SetSprite(serialized, "craftingBackgroundSprite", CraftingBackgroundPath);
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(catalog);
             AssetDatabase.SaveAssets();
+        }
+
+        private static void ConfigureBackgroundSprite(string path)
+        {
+            if (AssetImporter.GetAtPath(path) is not TextureImporter importer)
+            {
+                return;
+            }
+
+            bool changed = false;
+            changed |= SetImporterValue(importer.textureType != TextureImporterType.Sprite, () => importer.textureType = TextureImporterType.Sprite);
+            changed |= SetImporterValue(importer.spriteImportMode != SpriteImportMode.Single, () => importer.spriteImportMode = SpriteImportMode.Single);
+            changed |= SetImporterValue(!Mathf.Approximately(importer.spritePixelsPerUnit, UiPixelsPerUnit), () => importer.spritePixelsPerUnit = UiPixelsPerUnit);
+            changed |= SetImporterValue(importer.filterMode != FilterMode.Bilinear, () => importer.filterMode = FilterMode.Bilinear);
+            changed |= SetImporterValue(importer.mipmapEnabled, () => importer.mipmapEnabled = false);
+            changed |= SetImporterValue(importer.wrapMode != TextureWrapMode.Clamp, () => importer.wrapMode = TextureWrapMode.Clamp);
+            changed |= SetImporterValue(importer.npotScale != TextureImporterNPOTScale.None, () => importer.npotScale = TextureImporterNPOTScale.None);
+            if (changed)
+            {
+                importer.SaveAndReimport();
+            }
         }
 
         private static void ConfigureUiSprite(string path)

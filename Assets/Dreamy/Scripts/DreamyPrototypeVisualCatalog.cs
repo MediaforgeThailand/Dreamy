@@ -35,6 +35,7 @@ namespace Dreamy
         [SerializeField] private Sprite uiAttackIconSprite;
         [SerializeField] private Sprite uiDodgeIconSprite;
         [SerializeField] private Sprite uiInventoryIconSprite;
+        [SerializeField] private Sprite craftingBackgroundSprite;
 
         public Sprite WoodSprite => woodSprite;
         public Sprite GoldSprite => goldSprite;
@@ -66,6 +67,7 @@ namespace Dreamy
         public Sprite UiAttackIconSprite => uiAttackIconSprite;
         public Sprite UiDodgeIconSprite => uiDodgeIconSprite;
         public Sprite UiInventoryIconSprite => uiInventoryIconSprite;
+        public Sprite CraftingBackgroundSprite => craftingBackgroundSprite;
 
         public Sprite GetItemSprite(DreamyItemId itemId)
         {
