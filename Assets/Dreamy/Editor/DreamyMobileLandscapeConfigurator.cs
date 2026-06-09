@@ -140,8 +140,8 @@ namespace Dreamy.Editor
                 rootRect.anchorMin = new Vector2(0f, 0f);
                 rootRect.anchorMax = new Vector2(0f, 0f);
                 rootRect.pivot = new Vector2(0.5f, 0.5f);
-                rootRect.anchoredPosition = new Vector2(170f, 155f);
-                rootRect.sizeDelta = new Vector2(220f, 220f);
+                rootRect.anchoredPosition = new Vector2(190f, 170f);
+                rootRect.sizeDelta = new Vector2(252f, 252f);
             }
 
             RectTransform handleRect = null;
@@ -165,14 +165,14 @@ namespace Dreamy.Editor
                     handleRect.anchorMax = new Vector2(0.5f, 0.5f);
                     handleRect.pivot = new Vector2(0.5f, 0.5f);
                     handleRect.anchoredPosition = Vector2.zero;
-                    handleRect.sizeDelta = new Vector2(92f, 92f);
+                    handleRect.sizeDelta = new Vector2(104f, 104f);
                 }
             }
 
             DreamyVirtualJoystick virtualJoystick = joystick.GetComponent<DreamyVirtualJoystick>();
             if (virtualJoystick != null && handleRect != null)
             {
-                virtualJoystick.Bind(handleRect, 82f);
+                virtualJoystick.Bind(handleRect, 96f);
             }
         }
     }

@@ -152,6 +152,11 @@ namespace Dreamy
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
 
+            if (GetComponent<DreamySafeArea>() == null)
+            {
+                gameObject.AddComponent<DreamySafeArea>();
+            }
+
             if (GetComponent<GraphicRaycaster>() == null)
             {
                 gameObject.AddComponent<GraphicRaycaster>();
@@ -173,7 +178,7 @@ namespace Dreamy
             promptTextRect.offsetMin = new Vector2(12f, 6f);
             promptTextRect.offsetMax = new Vector2(-12f, -6f);
 
-            useButton = CreateButton(transform, "USE", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f), new Vector2(-420f, 100f), new Vector2(86f, 86f), false);
+            useButton = CreateButton(transform, "USE", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f), new Vector2(-440f, 126f), new Vector2(118f, 118f), false);
             useButton.onClick.AddListener(() =>
             {
                 if (interaction == null && player != null)
@@ -231,13 +236,13 @@ namespace Dreamy
             GameObject backgroundWash = CreatePanel(overlay.transform, "Crafting Background Wash", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             SetImageColor(backgroundWash, new Color(0f, 0f, 0f, 0.48f));
 
-            GameObject leftShade = CreatePanel(overlay.transform, "Crafting Left Shade", Vector2.zero, new Vector2(0.42f, 1f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            SetImageColor(leftShade, new Color(0f, 0f, 0f, 0.38f));
+            GameObject leftShade = CreatePanel(overlay.transform, "Crafting Left Shade", Vector2.zero, new Vector2(0.52f, 1f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            SetImageColor(leftShade, new Color(0f, 0f, 0f, 0.42f));
 
-            GameObject rightShade = CreatePanel(overlay.transform, "Crafting Right Shade", new Vector2(0.42f, 0f), Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            SetImageColor(rightShade, new Color(0f, 0f, 0f, 0.12f));
+            GameObject rightShade = CreatePanel(overlay.transform, "Crafting Right Shade", new Vector2(0.52f, 0f), Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            SetImageColor(rightShade, new Color(0f, 0f, 0f, 0.18f));
 
-            Button closeButton = CreatePlainButton(overlay.transform, "X", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-36f, -28f), new Vector2(58f, 52f), new Color(0.09f, 0.1f, 0.12f, 0.82f));
+            Button closeButton = CreatePlainButton(overlay.transform, "X", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-46f, -36f), new Vector2(72f, 64f), new Color(0.09f, 0.1f, 0.12f, 0.88f));
             closeButton.onClick.AddListener(CloseWindow);
             return overlay;
         }
@@ -299,29 +304,29 @@ namespace Dreamy
 
         private void BuildCraftingMenu(Transform root, DreamyPrototypeCraftingStation station, DreamyMobilePlayer targetPlayer)
         {
-            GameObject leftPanel = CreatePanel(root, "Crafting Menu Panel", new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0.5f), new Vector2(44f, 0f), new Vector2(650f, -120f));
-            SetImageColor(leftPanel, new Color(0f, 0f, 0f, 0.42f));
+            GameObject leftPanel = CreatePanel(root, "Crafting Menu Panel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(54f, -112f), new Vector2(920f, 900f));
+            SetImageColor(leftPanel, new Color(0f, 0f, 0f, 0.72f));
 
-            Text title = CreateText(leftPanel.transform, "CRAFTING", 72, TextAnchor.MiddleLeft, new Vector2(48f, -54f), new Vector2(520f, 86f));
+            Text title = CreateText(leftPanel.transform, "CRAFTING", 68, TextAnchor.MiddleLeft, new Vector2(48f, -40f), new Vector2(610f, 82f));
             title.fontStyle = FontStyle.Bold;
-            Text subtitle = CreateText(leftPanel.transform, station.DisplayName, 24, TextAnchor.MiddleLeft, new Vector2(54f, -140f), new Vector2(460f, 34f));
+            Text subtitle = CreateText(leftPanel.transform, station.DisplayName, 30, TextAnchor.MiddleLeft, new Vector2(54f, -124f), new Vector2(560f, 42f));
             subtitle.color = new Color(0.86f, 0.9f, 0.95f, 1f);
 
             string[] categories = { "ALL", "MEAL", "TOOL", "MATERIAL" };
             for (int i = 0; i < categories.Length; i++)
             {
-                Button category = CreatePlainButton(leftPanel.transform, categories[i], new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(54f + i * 124f, -190f), new Vector2(104f, 44f), i == 0 ? new Color(0.22f, 0.28f, 0.36f, 0.94f) : new Color(0.03f, 0.035f, 0.045f, 0.74f));
+                Button category = CreatePlainButton(leftPanel.transform, categories[i], new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(54f + i * 166f, -190f), new Vector2(144f, 56f), i == 0 ? new Color(0.22f, 0.28f, 0.36f, 0.96f) : new Color(0.03f, 0.035f, 0.045f, 0.8f));
                 category.onClick.AddListener(() => DreamyPrototypeInteraction.PublishMessage("Category filter is a placeholder"));
             }
 
-            CreateText(leftPanel.transform, "Recipes", 30, TextAnchor.MiddleLeft, new Vector2(54f, -254f), new Vector2(360f, 42f));
-            CreateDivider(leftPanel.transform, new Vector2(54f, -304f), 520f);
+            CreateText(leftPanel.transform, "Recipes", 36, TextAnchor.MiddleLeft, new Vector2(54f, -268f), new Vector2(420f, 48f));
+            CreateDivider(leftPanel.transform, new Vector2(54f, -326f), 788f);
 
             const int columns = 3;
-            const float slotSize = 112f;
-            const float columnGap = 54f;
-            const float rowGap = 158f;
-            Vector2 gridOrigin = new Vector2(68f, -340f);
+            const float slotSize = 146f;
+            const float columnGap = 90f;
+            const float rowGap = 192f;
+            Vector2 gridOrigin = new Vector2(70f, -366f);
             int count = Mathf.Min(station.Recipes.Count, 9);
             for (int i = 0; i < count; i++)
             {
@@ -331,9 +336,9 @@ namespace Dreamy
                 Vector2 slotPosition = gridOrigin + new Vector2(column * (slotSize + columnGap), -row * rowGap);
 
                 Button recipeButton = CreatePlainButton(leftPanel.transform, string.Empty, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), slotPosition, new Vector2(slotSize, slotSize), new Color(0.07f, 0.08f, 0.1f, 0.95f));
-                GameObject iconBox = CreatePlaceholderBox(recipeButton.transform, "Item Placeholder", new Vector2(12f, -12f), new Vector2(slotSize - 24f, slotSize - 24f), string.Empty, 18);
-                AddIconToBox(iconBox, GetRecipeIconSprite(recipe), 10f);
-                Text label = CreateText(leftPanel.transform, ShortenText(recipe.DisplayName, 16), 19, TextAnchor.UpperCenter, slotPosition + new Vector2(-10f, -118f), new Vector2(slotSize + 20f, 50f));
+                GameObject iconBox = CreatePlaceholderBox(recipeButton.transform, "Item Placeholder", new Vector2(14f, -14f), new Vector2(slotSize - 28f, slotSize - 28f), string.Empty, 18);
+                AddIconToBox(iconBox, GetRecipeIconSprite(recipe), 12f);
+                Text label = CreateText(leftPanel.transform, ShortenText(recipe.DisplayName, 18), 24, TextAnchor.UpperCenter, slotPosition + new Vector2(-14f, -154f), new Vector2(slotSize + 28f, 58f));
                 label.color = new Color(0.93f, 0.95f, 0.98f, 1f);
 
                 DreamyPrototypeRecipe selectedRecipe = recipe;
@@ -342,60 +347,62 @@ namespace Dreamy
 
             if (count == 0)
             {
-                Text empty = CreateText(leftPanel.transform, "No recipes yet", 24, TextAnchor.MiddleCenter, new Vector2(64f, -340f), new Vector2(500f, 80f));
+                Text empty = CreateText(leftPanel.transform, "No recipes yet", 30, TextAnchor.MiddleCenter, new Vector2(64f, -380f), new Vector2(660f, 90f));
                 empty.color = new Color(0.86f, 0.9f, 0.95f, 1f);
             }
 
-            Text hint = CreateText(root, "SELECT A RECIPE", 28, TextAnchor.MiddleRight, new Vector2(-226f, 84f), new Vector2(360f, 52f));
-            RectTransform hintRect = hint.GetComponent<RectTransform>();
-            hintRect.anchorMin = new Vector2(1f, 0f);
-            hintRect.anchorMax = new Vector2(1f, 0f);
-            hintRect.pivot = new Vector2(1f, 0f);
+            GameObject previewPanel = CreatePanel(root, "Crafting Preview Panel", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-56f, -16f), new Vector2(840f, 560f));
+            SetImageColor(previewPanel, new Color(0f, 0f, 0f, 0.56f));
+            Text hint = CreateText(previewPanel.transform, "SELECT A RECIPE", 40, TextAnchor.MiddleCenter, new Vector2(44f, -54f), new Vector2(752f, 64f));
+            hint.fontStyle = FontStyle.Bold;
+            hint.color = new Color(0.96f, 0.92f, 0.78f, 1f);
+            GameObject preview = CreatePlaceholderBox(previewPanel.transform, "Crafting Empty Preview", new Vector2(240f, -164f), new Vector2(360f, 300f), string.Empty, 24);
+            AddIconToBox(preview, GetItemIconSprite(DreamyItemId.CraftedMeal), 72f);
 
-            Button backButton = CreatePlainButton(root, "BACK", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-42f, 40f), new Vector2(140f, 56f), new Color(0.09f, 0.1f, 0.12f, 0.82f));
+            Button backButton = CreatePlainButton(root, "BACK", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-54f, 44f), new Vector2(174f, 68f), new Color(0.09f, 0.1f, 0.12f, 0.88f));
             backButton.onClick.AddListener(CloseWindow);
         }
 
         private void BuildCraftingDetail(Transform root, DreamyPrototypeCraftingStation station, DreamyMobilePlayer targetPlayer, DreamyPrototypeRecipe recipe)
         {
-            GameObject descriptionPanel = CreatePanel(root, "Crafting Description Panel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(86f, -178f), new Vector2(440f, 230f));
+            GameObject descriptionPanel = CreatePanel(root, "Crafting Description Panel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(54f, -126f), new Vector2(610f, 356f));
             SetImageColor(descriptionPanel, new Color(0f, 0f, 0f, 0.76f));
-            Text title = CreateText(descriptionPanel.transform, recipe.DisplayName, 28, TextAnchor.MiddleLeft, new Vector2(24f, -22f), new Vector2(360f, 42f));
+            Text title = CreateText(descriptionPanel.transform, recipe.DisplayName, 38, TextAnchor.MiddleLeft, new Vector2(28f, -24f), new Vector2(520f, 54f));
             title.fontStyle = FontStyle.Bold;
-            CreateDivider(descriptionPanel.transform, new Vector2(24f, -76f), 388f);
-            Text description = CreateText(descriptionPanel.transform, GetRecipeDescription(recipe), 22, TextAnchor.UpperLeft, new Vector2(24f, -94f), new Vector2(388f, 110f));
+            CreateDivider(descriptionPanel.transform, new Vector2(28f, -92f), 548f);
+            Text description = CreateText(descriptionPanel.transform, GetRecipeDescription(recipe), 28, TextAnchor.UpperLeft, new Vector2(28f, -118f), new Vector2(548f, 190f));
             description.color = new Color(0.92f, 0.94f, 0.98f, 1f);
             description.horizontalOverflow = HorizontalWrapMode.Wrap;
             description.verticalOverflow = VerticalWrapMode.Truncate;
 
-            GameObject largePreview = CreatePlaceholderBox(root, "Large Item Preview Placeholder", new Vector2(640f, -534f), new Vector2(560f, 560f), string.Empty, 32);
-            AddIconToBox(largePreview, GetRecipeIconSprite(recipe), 84f);
+            GameObject largePreview = CreatePlaceholderBox(root, "Large Item Preview Placeholder", new Vector2(720f, -184f), new Vector2(452f, 452f), string.Empty, 32);
+            AddIconToBox(largePreview, GetRecipeIconSprite(recipe), 72f);
 
-            GameObject requirementPanel = CreatePanel(root, "Crafting Requirements Panel", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-250f, -6f), new Vector2(420f, 320f));
+            GameObject requirementPanel = CreatePanel(root, "Crafting Requirements Panel", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-56f, -132f), new Vector2(628f, 640f));
             SetImageColor(requirementPanel, new Color(0f, 0f, 0f, 0.78f));
-            Text requirementsTitle = CreateText(requirementPanel.transform, "Crafting Requirements", 26, TextAnchor.MiddleLeft, new Vector2(24f, -22f), new Vector2(296f, 42f));
+            Text requirementsTitle = CreateText(requirementPanel.transform, "Crafting Requirements", 34, TextAnchor.MiddleLeft, new Vector2(28f, -24f), new Vector2(440f, 50f));
             requirementsTitle.fontStyle = FontStyle.Bold;
-            GameObject outputIconBox = CreatePlaceholderBox(requirementPanel.transform, "Output Placeholder", new Vector2(334f, -24f), new Vector2(54f, 54f), string.Empty, 12);
-            AddIconToBox(outputIconBox, GetRecipeIconSprite(recipe), 6f);
+            GameObject outputIconBox = CreatePlaceholderBox(requirementPanel.transform, "Output Placeholder", new Vector2(508f, -22f), new Vector2(72f, 72f), string.Empty, 12);
+            AddIconToBox(outputIconBox, GetRecipeIconSprite(recipe), 8f);
             RequirementInfoTooltip requirementTooltip = CreateRequirementInfoTooltip(requirementPanel.transform);
 
             int inputCount = Mathf.Min(recipe.Inputs.Count, 4);
             for (int i = 0; i < inputCount; i++)
             {
-                CreateRequirementRow(requirementPanel.transform, recipe.Inputs[i], targetPlayer.Inventory, new Vector2(24f, -94f - i * 54f), requirementTooltip);
+                CreateRequirementRow(requirementPanel.transform, recipe.Inputs[i], targetPlayer.Inventory, new Vector2(28f, -116f - i * 72f), requirementTooltip);
             }
 
             if (inputCount == 0)
             {
-                Text free = CreateText(requirementPanel.transform, "No materials required", 22, TextAnchor.MiddleLeft, new Vector2(24f, -104f), new Vector2(330f, 36f));
+                Text free = CreateText(requirementPanel.transform, "No materials required", 28, TextAnchor.MiddleLeft, new Vector2(28f, -126f), new Vector2(420f, 44f));
                 free.color = new Color(0.86f, 0.9f, 0.95f, 1f);
             }
 
-            CreateDivider(requirementPanel.transform, new Vector2(24f, -244f), 372f);
-            Text output = CreateText(requirementPanel.transform, "Craft x" + GetOutputQuantity(recipe) + "  " + GetOutputName(recipe), 22, TextAnchor.MiddleLeft, new Vector2(24f, -262f), new Vector2(260f, 36f));
+            CreateDivider(requirementPanel.transform, new Vector2(28f, -442f), 548f);
+            Text output = CreateText(requirementPanel.transform, "Craft x" + GetOutputQuantity(recipe) + "  " + GetOutputName(recipe), 28, TextAnchor.MiddleLeft, new Vector2(28f, -462f), new Vector2(360f, 44f));
             output.color = new Color(0.96f, 0.92f, 0.72f, 1f);
 
-            Button craftButton = CreatePlainButton(requirementPanel.transform, "CRAFT", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 22f), new Vector2(128f, 50f), new Color(0.64f, 0.16f, 0.17f, 0.95f));
+            Button craftButton = CreatePlainButton(requirementPanel.transform, "CRAFT", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-32f, 32f), new Vector2(184f, 72f), new Color(0.64f, 0.16f, 0.17f, 0.95f));
             craftButton.interactable = CanCraftRecipe(recipe, targetPlayer.Inventory);
             DreamyPrototypeRecipe selectedRecipe = recipe;
             craftButton.onClick.AddListener(() =>
@@ -406,7 +413,7 @@ namespace Dreamy
                 ShowCraftingDetail(station, player, selectedRecipe);
             });
 
-            Button backButton = CreatePlainButton(root, "BACK", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-42f, 40f), new Vector2(140f, 56f), new Color(0.09f, 0.1f, 0.12f, 0.82f));
+            Button backButton = CreatePlainButton(root, "BACK", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-54f, 44f), new Vector2(174f, 68f), new Color(0.09f, 0.1f, 0.12f, 0.88f));
             backButton.onClick.AddListener(() => ShowCrafting(station, targetPlayer));
         }
 
@@ -601,7 +608,7 @@ namespace Dreamy
 
         private RequirementInfoTooltip CreateRequirementInfoTooltip(Transform parent)
         {
-            GameObject root = CreatePanel(parent, "Requirement Info Tooltip", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(-292f, -116f), new Vector2(292f, 92f));
+            GameObject root = CreatePanel(parent, "Requirement Info Tooltip", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(-396f, -140f), new Vector2(380f, 128f));
             SetImageColor(root, new Color(0f, 0f, 0f, 0.9f));
             Image image = root.GetComponent<Image>();
             if (image != null)
@@ -613,13 +620,13 @@ namespace Dreamy
             outline.effectColor = new Color(1f, 1f, 1f, 0.32f);
             outline.effectDistance = new Vector2(1f, -1f);
 
-            Text title = CreateText(root.transform, string.Empty, 18, TextAnchor.MiddleLeft, new Vector2(14f, -8f), new Vector2(264f, 24f));
+            Text title = CreateText(root.transform, string.Empty, 24, TextAnchor.MiddleLeft, new Vector2(16f, -10f), new Vector2(348f, 30f));
             title.fontStyle = FontStyle.Bold;
-            Text description = CreateText(root.transform, string.Empty, 14, TextAnchor.UpperLeft, new Vector2(14f, -34f), new Vector2(264f, 30f));
+            Text description = CreateText(root.transform, string.Empty, 18, TextAnchor.UpperLeft, new Vector2(16f, -46f), new Vector2(348f, 40f));
             description.color = new Color(0.9f, 0.93f, 0.98f, 1f);
             description.horizontalOverflow = HorizontalWrapMode.Wrap;
             description.verticalOverflow = VerticalWrapMode.Truncate;
-            Text location = CreateText(root.transform, string.Empty, 13, TextAnchor.UpperLeft, new Vector2(14f, -68f), new Vector2(264f, 18f));
+            Text location = CreateText(root.transform, string.Empty, 16, TextAnchor.UpperLeft, new Vector2(16f, -92f), new Vector2(348f, 24f));
             location.color = new Color(0.96f, 0.88f, 0.58f, 1f);
             location.horizontalOverflow = HorizontalWrapMode.Wrap;
             location.verticalOverflow = VerticalWrapMode.Truncate;
@@ -636,22 +643,22 @@ namespace Dreamy
 
         private void CreateRequirementRow(Transform parent, DreamyItemStack stack, DreamyInventory inventory, Vector2 position, RequirementInfoTooltip tooltip)
         {
-            GameObject placeholder = CreatePlaceholderBox(parent, stack.DisplayName + " Placeholder", position, new Vector2(42f, 42f), string.Empty, 12);
-            AddIconToBox(placeholder, GetItemIconSprite(stack.ItemId), 4f);
+            GameObject placeholder = CreatePlaceholderBox(parent, stack.DisplayName + " Placeholder", position, new Vector2(56f, 56f), string.Empty, 12);
+            AddIconToBox(placeholder, GetItemIconSprite(stack.ItemId), 6f);
             Image placeholderImage = placeholder.GetComponent<Image>();
             if (placeholderImage != null)
             {
                 placeholderImage.raycastTarget = false;
             }
 
-            Text name = CreateText(parent, stack.DisplayName, 20, TextAnchor.MiddleLeft, position + new Vector2(58f, -2f), new Vector2(180f, 38f));
+            Text name = CreateText(parent, stack.DisplayName, 26, TextAnchor.MiddleLeft, position + new Vector2(72f, -4f), new Vector2(270f, 50f));
             name.color = new Color(0.92f, 0.94f, 0.98f, 1f);
 
             int owned = inventory != null ? inventory.GetQuantity(stack.ItemId) : 0;
-            Text count = CreateText(parent, owned + "/" + stack.Quantity, 20, TextAnchor.MiddleRight, position + new Vector2(262f, -2f), new Vector2(100f, 38f));
+            Text count = CreateText(parent, owned + "/" + stack.Quantity, 26, TextAnchor.MiddleRight, position + new Vector2(374f, -4f), new Vector2(150f, 50f));
             count.color = owned >= stack.Quantity ? new Color(0.55f, 0.94f, 0.62f, 1f) : new Color(0.95f, 0.36f, 0.32f, 1f);
 
-            Button infoButton = CreatePlainButton(parent, string.Empty, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), position + new Vector2(0f, 2f), new Vector2(248f, 46f), new Color(1f, 1f, 1f, 0.01f));
+            Button infoButton = CreatePlainButton(parent, string.Empty, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), position + new Vector2(0f, 2f), new Vector2(536f, 62f), new Color(1f, 1f, 1f, 0.01f));
             infoButton.gameObject.name = stack.DisplayName + " Requirement Info Button";
             infoButton.transform.SetAsLastSibling();
             DreamyItemStack selectedStack = stack;
@@ -693,7 +700,7 @@ namespace Dreamy
 
         private static Vector2 GetRequirementTooltipPosition(Vector2 rowPosition)
         {
-            return new Vector2(-292f, Mathf.Clamp(rowPosition.y - 18f, -150f, -108f));
+            return new Vector2(-396f, Mathf.Clamp(rowPosition.y - 24f, -360f, -132f));
         }
 
         private Sprite GetRecipeIconSprite(DreamyPrototypeRecipe recipe)

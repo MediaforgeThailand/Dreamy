@@ -190,14 +190,15 @@ namespace Dreamy.Extraction
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
             canvasObject.AddComponent<GraphicRaycaster>();
+            canvasObject.AddComponent<DreamySafeArea>();
 
             DreamyVirtualJoystick joystick = CreateJoystick(canvasObject.transform);
             input.BindJoystick(joystick);
 
-            CreateActionButton(canvasObject.transform, input, ExtractionActionButtonType.Attack, "ATK", new Vector2(-170f, 160f));
-            CreateActionButton(canvasObject.transform, input, ExtractionActionButtonType.Dodge, "ROLL", new Vector2(-310f, 115f));
-            CreateActionButton(canvasObject.transform, input, ExtractionActionButtonType.Skill, "SKILL", new Vector2(-170f, 305f));
-            CreateActionButton(canvasObject.transform, input, ExtractionActionButtonType.Interact, "USE", new Vector2(-450f, 160f));
+            CreateActionButton(canvasObject.transform, input, ExtractionActionButtonType.Attack, "ATK", new Vector2(-150f, 160f));
+            CreateActionButton(canvasObject.transform, input, ExtractionActionButtonType.Dodge, "ROLL", new Vector2(-294f, 120f));
+            CreateActionButton(canvasObject.transform, input, ExtractionActionButtonType.Skill, "SKILL", new Vector2(-150f, 304f));
+            CreateActionButton(canvasObject.transform, input, ExtractionActionButtonType.Interact, "USE", new Vector2(-438f, 160f));
             CreatePlayerHud(
                 canvasObject.transform,
                 player.GetComponent<ExtractionHealth>(),
@@ -327,8 +328,8 @@ namespace Dreamy.Extraction
             rootRect.anchorMin = Vector2.zero;
             rootRect.anchorMax = Vector2.zero;
             rootRect.pivot = new Vector2(0.5f, 0.5f);
-            rootRect.anchoredPosition = new Vector2(170f, 155f);
-            rootRect.sizeDelta = new Vector2(220f, 220f);
+            rootRect.anchoredPosition = new Vector2(190f, 170f);
+            rootRect.sizeDelta = new Vector2(252f, 252f);
 
             GameObject handle = new GameObject("Extraction Joystick Handle");
             handle.transform.SetParent(joystickRoot.transform, false);
@@ -343,10 +344,10 @@ namespace Dreamy.Extraction
             handleRect.anchorMax = new Vector2(0.5f, 0.5f);
             handleRect.pivot = new Vector2(0.5f, 0.5f);
             handleRect.anchoredPosition = Vector2.zero;
-            handleRect.sizeDelta = new Vector2(92f, 92f);
+            handleRect.sizeDelta = new Vector2(104f, 104f);
 
             DreamyVirtualJoystick joystick = joystickRoot.AddComponent<DreamyVirtualJoystick>();
-            joystick.Bind(handleRect, 82f);
+            joystick.Bind(handleRect, 96f);
             return joystick;
         }
 
@@ -517,7 +518,7 @@ namespace Dreamy.Extraction
             rect.anchorMax = new Vector2(1f, 0f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = new Vector2(120f, 120f);
+            rect.sizeDelta = new Vector2(136f, 136f);
 
             ExtractionActionButton actionButton = buttonObject.AddComponent<ExtractionActionButton>();
             actionButton.Bind(input, action);
@@ -527,7 +528,7 @@ namespace Dreamy.Extraction
             Text text = textObject.AddComponent<Text>();
             text.text = label;
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 26;
+            text.fontSize = 28;
             text.alignment = TextAnchor.MiddleCenter;
             text.color = Color.white;
             text.raycastTarget = false;

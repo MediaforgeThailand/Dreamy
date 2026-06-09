@@ -95,6 +95,15 @@ namespace Dreamy
             }
         }
 
+        public void SetFollowTuning(float followSmoothTime, float followMaxSpeed, float followDeadZoneRadius)
+        {
+            smoothTime = Mathf.Max(0f, followSmoothTime);
+            maximumFollowSpeed = Mathf.Max(minimumFollowSpeed, followMaxSpeed);
+            edgeSafeZonePercent = Mathf.Clamp(followDeadZoneRadius * 100f, 0f, 45f);
+            currentFollowSpeed = 0f;
+            followVelocity = Vector3.zero;
+        }
+
         private void Awake()
         {
             followCamera = GetComponent<Camera>();

@@ -10,6 +10,9 @@ namespace Dreamy
         [SerializeField] private float maxStamina = 100f;
         [SerializeField] private float currentStamina = 100f;
         [SerializeField] private float staminaRegenPerSecond = 12f;
+        [SerializeField] private float staminaRegenDelay = 0.65f;
+        [SerializeField, Range(0f, 1f)] private float exhaustedRecoveryPercent = 0.25f;
+        [SerializeField] private float invulnerabilitySeconds = 0.35f;
         [SerializeField] private float damage = 10f;
         [SerializeField] private float strength;
         [SerializeField] private float agility;
@@ -25,6 +28,9 @@ namespace Dreamy
         private float slowEndsAt;
         private float slowMultiplier = 1f;
         private float stunEndsAt;
+        private bool isExhausted;
+        private float lastStaminaSpendTime = -999f;
+        private float invulnerableUntilTime;
 
         public float MaxHealth
         {
@@ -63,6 +69,7 @@ namespace Dreamy
             {
                 maxStamina = Mathf.Max(1f, value);
                 currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
+                RefreshExhaustionState();
                 StatsChanged?.Invoke();
             }
         }
@@ -73,6 +80,7 @@ namespace Dreamy
             set
             {
                 currentStamina = Mathf.Clamp(value, 0f, maxStamina);
+                RefreshExhaustionState();
                 StatsChanged?.Invoke();
             }
         }
@@ -131,14 +139,27 @@ namespace Dreamy
         public float DamageMultiplier => 1f + strength * 0.025f;
         public float AttackSpeedMultiplier => Mathf.Max(0.1f, attackSpeed * (1f + agility * 0.02f) * StatusSpeedMultiplier);
         public float MovementSpeedMultiplier => IsStunned ? 0f : StatusSpeedMultiplier;
+        public bool IsExhausted => isExhausted;
+        public bool IsInvulnerable => IsAlive && Time.time < invulnerableUntilTime;
+        public float Health01 => maxHealth > 0f ? Mathf.Clamp01(currentHealth / maxHealth) : 0f;
+        public float Stamina01 => maxStamina > 0f ? Mathf.Clamp01(currentStamina / maxStamina) : 0f;
+
         private float StatusSpeedMultiplier => IsSlowed ? Mathf.Clamp(slowMultiplier, 0.05f, 1f) : 1f;
+        private float ExhaustedRecoveryStamina => maxStamina * exhaustedRecoveryPercent;
 
         private void Update()
         {
-            if (currentStamina < maxStamina && staminaRegenPerSecond > 0f)
+            if (!IsAlive || currentStamina >= maxStamina || staminaRegenPerSecond <= 0f)
             {
-                CurrentStamina = Mathf.MoveTowards(currentStamina, maxStamina, staminaRegenPerSecond * Time.deltaTime);
+                return;
             }
+
+            if (Time.time < lastStaminaSpendTime + staminaRegenDelay)
+            {
+                return;
+            }
+
+            CurrentStamina = Mathf.MoveTowards(currentStamina, maxStamina, staminaRegenPerSecond * Time.deltaTime);
         }
 
         public float ResolveOutgoingDamage(float baseDamage, float actionMultiplier, out bool critical)
@@ -194,9 +215,9 @@ namespace Dreamy
             StatsChanged?.Invoke();
         }
 
-        public float TakeDamage(float amount)
+        public float TakeDamage(float amount, bool ignoreInvulnerability = false)
         {
-            if (amount <= 0f || !IsAlive)
+            if (amount <= 0f || !IsAlive || (!ignoreInvulnerability && IsInvulnerable))
             {
                 return 0f;
             }
@@ -206,6 +227,7 @@ namespace Dreamy
             float actualDamage = Mathf.Max(0f, previousHealth - currentHealth);
             if (actualDamage > 0f)
             {
+                invulnerableUntilTime = Time.time + invulnerabilitySeconds;
                 Damaged?.Invoke(actualDamage);
             }
 
@@ -226,14 +248,15 @@ namespace Dreamy
         {
             if (amount <= 0f)
             {
-                return true;
+                return IsAlive && !isExhausted;
             }
 
-            if (currentStamina < amount)
+            if (!IsAlive || isExhausted || currentStamina < amount)
             {
                 return false;
             }
 
+            lastStaminaSpendTime = Time.time;
             CurrentStamina = currentStamina - amount;
             return true;
         }
@@ -256,6 +279,9 @@ namespace Dreamy
             maxStamina = Mathf.Max(1f, maxStamina);
             currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
             staminaRegenPerSecond = Mathf.Max(0f, staminaRegenPerSecond);
+            staminaRegenDelay = Mathf.Max(0f, staminaRegenDelay);
+            exhaustedRecoveryPercent = Mathf.Clamp01(exhaustedRecoveryPercent);
+            invulnerabilitySeconds = Mathf.Max(0f, invulnerabilitySeconds);
             damage = Mathf.Max(0f, damage);
             strength = Mathf.Max(0f, strength);
             agility = Mathf.Max(0f, agility);
@@ -263,6 +289,19 @@ namespace Dreamy
             criticalChance = Mathf.Clamp01(criticalChance);
             criticalDamageMultiplier = Mathf.Max(1f, criticalDamageMultiplier);
             statusResistance = Mathf.Clamp01(statusResistance);
+            RefreshExhaustionState();
+        }
+
+        private void RefreshExhaustionState()
+        {
+            if (currentStamina <= 0f)
+            {
+                isExhausted = true;
+            }
+            else if (isExhausted && currentStamina >= ExhaustedRecoveryStamina)
+            {
+                isExhausted = false;
+            }
         }
     }
 }

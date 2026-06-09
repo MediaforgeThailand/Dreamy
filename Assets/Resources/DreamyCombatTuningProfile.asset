@@ -1,4 +1,4 @@
-﻿%YAML 1.1
+%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:
@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 58f8e758f1cc46f6ba4de2d6c6bf67aa, type: 3}
   m_Name: DreamyCombatTuningProfile
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   baseDamage: 18
   normalAttackMinimumDuration: 0.38
   specialAttackMinimumDuration: 0.85

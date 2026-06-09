@@ -34,6 +34,7 @@ namespace Dreamy
         private bool prototypeLifeSystemsSpawned;
         private bool characterSelectionShown;
         private float characterSelectionPreviousTimeScale = 1f;
+        private bool existingMobileHudLayoutApplied;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InitializeForLoadedScene()
@@ -92,6 +93,7 @@ namespace Dreamy
 
             if (player != null && hud == null)
             {
+                ApplyExistingMobileHudLayout();
                 EnsureHud();
             }
 
@@ -117,6 +119,7 @@ namespace Dreamy
 
             EnsurePlayerCoreComponents();
             EnsureEventSystem();
+            ApplyExistingMobileHudLayout();
             EnsureHud();
             EnsureInteractionUi();
             EnsureCharacterSelectionUi();
@@ -248,10 +251,83 @@ namespace Dreamy
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
             hudRoot.AddComponent<GraphicRaycaster>();
+            hudRoot.AddComponent<DreamySafeArea>();
 
             hud = hudRoot.AddComponent<DreamyPrototypeRuntimeHud>();
             hud.Build(hudRoot.transform);
             hud.Bind(player, visualCatalog);
+        }
+
+        private void ApplyExistingMobileHudLayout()
+        {
+            if (existingMobileHudLayoutApplied)
+            {
+                return;
+            }
+
+            DreamyVirtualJoystick[] joysticks = FindObjectsByType<DreamyVirtualJoystick>(FindObjectsInactive.Exclude);
+            if (joysticks.Length == 0)
+            {
+                return;
+            }
+
+            existingMobileHudLayoutApplied = true;
+            for (int i = 0; i < joysticks.Length; i++)
+            {
+                ApplyJoystickLayout(joysticks[i]);
+            }
+        }
+
+        private static void ApplyJoystickLayout(DreamyVirtualJoystick joystick)
+        {
+            if (joystick == null)
+            {
+                return;
+            }
+
+            RectTransform rootRect = joystick.GetComponent<RectTransform>();
+            if (rootRect == null)
+            {
+                return;
+            }
+
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.zero;
+            rootRect.pivot = new Vector2(0.5f, 0.5f);
+            rootRect.anchoredPosition = new Vector2(190f, 170f);
+            rootRect.sizeDelta = new Vector2(252f, 252f);
+
+            RectTransform handleRect = FindJoystickHandle(joystick.transform);
+            if (handleRect == null)
+            {
+                return;
+            }
+
+            handleRect.anchorMin = new Vector2(0.5f, 0.5f);
+            handleRect.anchorMax = new Vector2(0.5f, 0.5f);
+            handleRect.pivot = new Vector2(0.5f, 0.5f);
+            handleRect.anchoredPosition = Vector2.zero;
+            handleRect.sizeDelta = new Vector2(104f, 104f);
+            joystick.Bind(handleRect, 96f);
+        }
+
+        private static RectTransform FindJoystickHandle(Transform joystickRoot)
+        {
+            if (joystickRoot == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < joystickRoot.childCount; i++)
+            {
+                Transform child = joystickRoot.GetChild(i);
+                if (child.name.Contains("Handle"))
+                {
+                    return child.GetComponent<RectTransform>();
+                }
+            }
+
+            return joystickRoot.childCount > 0 ? joystickRoot.GetChild(0).GetComponent<RectTransform>() : null;
         }
 
         private void EnsureInteractionUi()
@@ -927,9 +1003,15 @@ namespace Dreamy
         private const int InventoryRows = 6;
         private const int InventoryColumns = 10;
         private const int InventorySlotCount = InventoryRows * InventoryColumns;
+        private const int ConsumableSlotCount = 6;
+        private const int QuickSlotCount = 2;
         private const float InventorySlotSize = 76f;
-        private const float InventorySlotGap = 8f;
+        private const float InventorySlotGap = 10f;
         private const int TrainingLogLineCount = 8;
+        private const float ConsumableSlotSize = 96f;
+        private const float ConsumableSlotGap = 28f;
+        private const float QuickSlotSize = 174f;
+        private const float QuickSlotGap = 46f;
 
         private Image statusPanelImage;
         private Image resourcePanelImage;
@@ -952,22 +1034,46 @@ namespace Dreamy
         private Button dodgeButton;
         private Button inventoryButton;
         private Button trainingResetButton;
+        private Button inventoryTabButton;
+        private Button weaponsTabButton;
         private Button closeInventoryButton;
         private Image attackButtonIcon;
         private Image specialSkillButtonIcon;
         private Image dodgeButtonIcon;
         private Image inventoryButtonIcon;
+        private Image inventoryTabImage;
+        private Image weaponsTabImage;
         private GameObject inventoryWindow;
+        private GameObject inventoryTabContent;
+        private GameObject weaponsTabContent;
+        private GameObject inventoryDragGhost;
+        private Image inventoryDragGhostImage;
         private Text inventoryTitleLabel;
         private readonly Image[] inventorySlotBackgrounds = new Image[InventorySlotCount];
         private readonly Image[] inventorySlotIcons = new Image[InventorySlotCount];
         private readonly Text[] inventorySlotNames = new Text[InventorySlotCount];
         private readonly Text[] inventorySlotQuantities = new Text[InventorySlotCount];
+        private readonly Image[] consumableSlotBackgrounds = new Image[ConsumableSlotCount];
+        private readonly Image[] consumableSlotIcons = new Image[ConsumableSlotCount];
+        private readonly Text[] consumableSlotNames = new Text[ConsumableSlotCount];
+        private readonly Text[] consumableSlotQuantities = new Text[ConsumableSlotCount];
+        private readonly DreamyPrototypeInventoryDragSource[] consumableDragSources = new DreamyPrototypeInventoryDragSource[ConsumableSlotCount];
+        private readonly Image[] quickSlotBackgrounds = new Image[QuickSlotCount];
+        private readonly Image[] quickSlotIcons = new Image[QuickSlotCount];
+        private readonly Text[] quickSlotLabels = new Text[QuickSlotCount];
+        private readonly Text[] quickSlotNames = new Text[QuickSlotCount];
+        private readonly bool[] quickSlotAssigned = new bool[QuickSlotCount];
+        private readonly DreamyItemId[] quickSlotItemIds = new DreamyItemId[QuickSlotCount];
+        private readonly string[] quickSlotDisplayNames = new string[QuickSlotCount];
         private DreamyMobilePlayer player;
         private DreamyPlayerCombat playerCombat;
         private DreamyPlayerProgression progression;
         private DreamyQuestLog questLog;
         private DreamyPrototypeVisualCatalog visualCatalog;
+        private DreamyItemId draggedItemId;
+        private string draggedDisplayName;
+        private Sprite draggedSprite;
+        private bool hasDraggedItem;
         private string message;
         private float messageUntil;
         private readonly Queue<string> trainingLogEntries = new Queue<string>();
@@ -1003,9 +1109,9 @@ namespace Dreamy
             staminaBar = CreateBar(statusPanel.transform, "STA", new Color(0.22f, 0.8f, 0.4f, 1f), new Vector2(18f, -66f), new Vector2(434f, 42f), 18, out staminaLabel);
             expBar = CreateBar(statusPanel.transform, "EXP", new Color(0.28f, 0.62f, 1f, 1f), new Vector2(18f, -112f), new Vector2(434f, 42f), 18, out expLabel);
 
-            inventoryButton = CreateButton(parent, "BAG", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), new Vector2(92f, 92f));
-            inventoryButtonIcon = CreateButtonIcon(inventoryButton.transform, new Vector2(44f, 44f), new Vector2(0f, 8f));
-            PlaceButtonLabel(inventoryButton, "BAG", 15, new Vector2(0f, -31f), new Vector2(78f, 22f));
+            inventoryButton = CreateButton(parent, "BAG", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-28f, -28f), new Vector2(104f, 104f));
+            inventoryButtonIcon = CreateButtonIcon(inventoryButton.transform, new Vector2(50f, 50f), new Vector2(0f, 9f));
+            PlaceButtonLabel(inventoryButton, "BAG", 16, new Vector2(0f, -36f), new Vector2(84f, 24f));
             BuildInventoryWindow(parent);
 
             GameObject resourcePanel = CreatePanel(parent, "Prototype Resource Panel", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(760f, 78f));
@@ -1040,15 +1146,15 @@ namespace Dreamy
             messageRect.pivot = new Vector2(0.5f, 1f);
             messageLabel.color = new Color(1f, 0.95f, 0.68f, 1f);
 
-            attackButton = CreateButton(parent, "ATK", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f), new Vector2(-160f, 142f), new Vector2(122f, 122f));
-            attackButtonIcon = CreateButtonIcon(attackButton.transform, new Vector2(54f, 54f), new Vector2(0f, 13f));
-            PlaceButtonLabel(attackButton, "ATK", 18, new Vector2(0f, -39f), new Vector2(96f, 24f));
-            specialSkillButton = CreateButton(parent, "SKL", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f), new Vector2(-160f, 282f), new Vector2(106f, 106f));
-            specialSkillButtonIcon = CreateButtonIcon(specialSkillButton.transform, new Vector2(46f, 46f), new Vector2(0f, 11f));
-            PlaceButtonLabel(specialSkillButton, "SKL", 15, new Vector2(0f, -34f), new Vector2(82f, 22f));
-            dodgeButton = CreateButton(parent, "ROLL", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f), new Vector2(-302f, 104f), new Vector2(96f, 96f));
-            dodgeButtonIcon = CreateButtonIcon(dodgeButton.transform, new Vector2(42f, 42f), new Vector2(0f, 10f));
-            PlaceButtonLabel(dodgeButton, "ROLL", 14, new Vector2(0f, -31f), new Vector2(78f, 20f));
+            attackButton = CreateButton(parent, "ATK", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f), new Vector2(-154f, 154f), new Vector2(146f, 146f));
+            attackButtonIcon = CreateButtonIcon(attackButton.transform, new Vector2(64f, 64f), new Vector2(0f, 16f));
+            PlaceButtonLabel(attackButton, "ATK", 20, new Vector2(0f, -46f), new Vector2(108f, 28f));
+            specialSkillButton = CreateButton(parent, "SKL", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f), new Vector2(-154f, 310f), new Vector2(120f, 120f));
+            specialSkillButtonIcon = CreateButtonIcon(specialSkillButton.transform, new Vector2(52f, 52f), new Vector2(0f, 13f));
+            PlaceButtonLabel(specialSkillButton, "SKL", 16, new Vector2(0f, -39f), new Vector2(92f, 22f));
+            dodgeButton = CreateButton(parent, "ROLL", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f), new Vector2(-304f, 126f), new Vector2(120f, 120f));
+            dodgeButtonIcon = CreateButtonIcon(dodgeButton.transform, new Vector2(52f, 52f), new Vector2(0f, 13f));
+            PlaceButtonLabel(dodgeButton, "ROLL", 16, new Vector2(0f, -39f), new Vector2(92f, 22f));
         }
 
         public void Bind(DreamyMobilePlayer targetPlayer, DreamyPrototypeVisualCatalog catalog)
@@ -1095,6 +1201,18 @@ namespace Dreamy
                 trainingResetButton.onClick.AddListener(ResetTrainingDummyLog);
             }
 
+            if (inventoryTabButton != null)
+            {
+                inventoryTabButton.onClick.RemoveAllListeners();
+                inventoryTabButton.onClick.AddListener(() => SelectInventoryTab(true));
+            }
+
+            if (weaponsTabButton != null)
+            {
+                weaponsTabButton.onClick.RemoveAllListeners();
+                weaponsTabButton.onClick.AddListener(() => SelectInventoryTab(false));
+            }
+
             if (dodgeButton != null)
             {
                 dodgeButton.onClick.RemoveAllListeners();
@@ -1133,6 +1251,16 @@ namespace Dreamy
             for (int i = 0; i < inventorySlotBackgrounds.Length; i++)
             {
                 ApplySolidSprite(inventorySlotBackgrounds[i], new Color(0.05f, 0.06f, 0.075f, 0.9f), Image.Type.Simple);
+            }
+
+            for (int i = 0; i < consumableSlotBackgrounds.Length; i++)
+            {
+                ApplySolidSprite(consumableSlotBackgrounds[i], new Color(0.055f, 0.068f, 0.085f, 0.92f), Image.Type.Simple);
+            }
+
+            for (int i = 0; i < quickSlotBackgrounds.Length; i++)
+            {
+                ApplySolidSprite(quickSlotBackgrounds[i], new Color(0.07f, 0.084f, 0.105f, 0.94f), Image.Type.Simple);
             }
 
             if (visualCatalog == null)
@@ -1223,6 +1351,212 @@ namespace Dreamy
 
                 SetText(inventorySlotNames[i], hasItem ? ShortenDisplayName(slot.DisplayName) : string.Empty);
                 SetText(inventorySlotQuantities[i], hasItem ? "x" + slot.Quantity : string.Empty);
+            }
+
+            RefreshConsumableSlots(inventory);
+            RefreshQuickSlots(inventory);
+        }
+
+        private void RefreshConsumableSlots(DreamyInventory inventory)
+        {
+            int consumableIndex = 0;
+            int itemCount = inventory != null ? inventory.Items.Count : 0;
+            for (int i = 0; i < itemCount && consumableIndex < ConsumableSlotCount; i++)
+            {
+                DreamyInventorySlot slot = inventory.Items[i];
+                if (slot == null || slot.Quantity <= 0 || !IsConsumableItem(slot.ItemId))
+                {
+                    continue;
+                }
+
+                SetConsumableSlot(consumableIndex, slot);
+                consumableIndex++;
+            }
+
+            for (int i = consumableIndex; i < ConsumableSlotCount; i++)
+            {
+                SetConsumableSlot(i, null);
+            }
+        }
+
+        private void SetConsumableSlot(int index, DreamyInventorySlot slot)
+        {
+            if (index < 0 || index >= ConsumableSlotCount)
+            {
+                return;
+            }
+
+            bool hasItem = slot != null && slot.Quantity > 0;
+            Sprite sprite = hasItem ? GetItemSprite(slot.ItemId) : null;
+
+            if (consumableSlotBackgrounds[index] != null)
+            {
+                consumableSlotBackgrounds[index].color = hasItem
+                    ? new Color(0.13f, 0.16f, 0.2f, 0.98f)
+                    : new Color(0.055f, 0.068f, 0.085f, 0.78f);
+            }
+
+            if (consumableSlotIcons[index] != null)
+            {
+                consumableSlotIcons[index].sprite = sprite;
+                consumableSlotIcons[index].color = hasItem ? Color.white : new Color(1f, 1f, 1f, 0f);
+            }
+
+            SetText(consumableSlotNames[index], hasItem ? ShortenText(slot.DisplayName, 12) : string.Empty);
+            SetText(consumableSlotQuantities[index], hasItem ? "x" + slot.Quantity : string.Empty);
+
+            if (consumableDragSources[index] != null)
+            {
+                consumableDragSources[index].Bind(
+                    this,
+                    hasItem ? slot.ItemId : DreamyItemId.Custom,
+                    hasItem ? slot.DisplayName : string.Empty,
+                    sprite,
+                    hasItem);
+            }
+        }
+
+        private void RefreshQuickSlots(DreamyInventory inventory)
+        {
+            for (int i = 0; i < QuickSlotCount; i++)
+            {
+                bool hasItem = quickSlotAssigned[i] && inventory != null && inventory.GetQuantity(quickSlotItemIds[i]) > 0;
+                if (!hasItem)
+                {
+                    quickSlotAssigned[i] = false;
+                }
+
+                if (quickSlotBackgrounds[i] != null)
+                {
+                    quickSlotBackgrounds[i].color = hasItem
+                        ? new Color(0.16f, 0.19f, 0.24f, 0.98f)
+                        : new Color(0.07f, 0.084f, 0.105f, 0.84f);
+                }
+
+                if (quickSlotIcons[i] != null)
+                {
+                    quickSlotIcons[i].sprite = hasItem ? GetItemSprite(quickSlotItemIds[i]) : null;
+                    quickSlotIcons[i].color = hasItem ? Color.white : new Color(1f, 1f, 1f, 0f);
+                }
+
+                SetText(quickSlotLabels[i], "Q" + (i + 1));
+                SetText(quickSlotNames[i], hasItem ? ShortenText(quickSlotDisplayNames[i], 12) : string.Empty);
+            }
+        }
+
+        private static bool IsConsumableItem(DreamyItemId itemId)
+        {
+            switch (itemId)
+            {
+                case DreamyItemId.Food:
+                case DreamyItemId.Meat:
+                case DreamyItemId.Potion:
+                case DreamyItemId.Crop:
+                case DreamyItemId.CraftedMeal:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static string ShortenText(string value, int maxLength)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.Length <= maxLength)
+            {
+                return value;
+            }
+
+            return value.Substring(0, Mathf.Max(0, maxLength - 1)) + ".";
+        }
+
+        public void BeginInventoryItemDrag(DreamyItemId itemId, string displayName, Sprite sprite, PointerEventData eventData)
+        {
+            draggedItemId = itemId;
+            draggedDisplayName = displayName;
+            draggedSprite = sprite;
+            hasDraggedItem = true;
+            EnsureInventoryDragGhost();
+            UpdateInventoryItemDrag(eventData);
+        }
+
+        public void UpdateInventoryItemDrag(PointerEventData eventData)
+        {
+            if (!hasDraggedItem || inventoryDragGhost == null || inventoryWindow == null || eventData == null)
+            {
+                return;
+            }
+
+            RectTransform windowRect = inventoryWindow.GetComponent<RectTransform>();
+            RectTransform ghostRect = inventoryDragGhost.GetComponent<RectTransform>();
+            if (windowRect == null || ghostRect == null)
+            {
+                return;
+            }
+
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(windowRect, eventData.position, eventData.pressEventCamera, out Vector2 localPoint))
+            {
+                ghostRect.anchoredPosition = localPoint;
+            }
+        }
+
+        public void EndInventoryItemDrag()
+        {
+            if (inventoryDragGhost != null)
+            {
+                Destroy(inventoryDragGhost);
+                inventoryDragGhost = null;
+                inventoryDragGhostImage = null;
+            }
+
+            hasDraggedItem = false;
+            draggedSprite = null;
+            draggedDisplayName = string.Empty;
+        }
+
+        public void AssignDraggedItemToQuickSlot(int quickSlotIndex)
+        {
+            if (!hasDraggedItem || quickSlotIndex < 0 || quickSlotIndex >= QuickSlotCount)
+            {
+                return;
+            }
+
+            quickSlotAssigned[quickSlotIndex] = true;
+            quickSlotItemIds[quickSlotIndex] = draggedItemId;
+            quickSlotDisplayNames[quickSlotIndex] = draggedDisplayName;
+            RefreshQuickSlots(Inventory);
+        }
+
+        private void EnsureInventoryDragGhost()
+        {
+            if (inventoryWindow == null)
+            {
+                return;
+            }
+
+            if (inventoryDragGhost == null)
+            {
+                inventoryDragGhost = new GameObject("Inventory Drag Ghost");
+                inventoryDragGhost.transform.SetParent(inventoryWindow.transform, false);
+                inventoryDragGhostImage = inventoryDragGhost.AddComponent<Image>();
+                inventoryDragGhostImage.preserveAspect = true;
+                inventoryDragGhostImage.raycastTarget = false;
+
+                CanvasGroup canvasGroup = inventoryDragGhost.AddComponent<CanvasGroup>();
+                canvasGroup.blocksRaycasts = false;
+                canvasGroup.alpha = 0.86f;
+
+                RectTransform rect = inventoryDragGhost.GetComponent<RectTransform>();
+                rect.anchorMin = new Vector2(0.5f, 0.5f);
+                rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.pivot = new Vector2(0.5f, 0.5f);
+                rect.sizeDelta = new Vector2(88f, 88f);
+            }
+
+            inventoryDragGhost.transform.SetAsLastSibling();
+            if (inventoryDragGhostImage != null)
+            {
+                inventoryDragGhostImage.sprite = draggedSprite;
+                inventoryDragGhostImage.color = draggedSprite != null ? Color.white : new Color(1f, 1f, 1f, 0f);
             }
         }
 
@@ -1390,6 +1724,35 @@ namespace Dreamy
             RefreshInventory();
         }
 
+        private void SelectInventoryTab(bool showInventory)
+        {
+            if (inventoryTabContent != null)
+            {
+                inventoryTabContent.SetActive(showInventory);
+            }
+
+            if (weaponsTabContent != null)
+            {
+                weaponsTabContent.SetActive(!showInventory);
+            }
+
+            SetInventoryTabVisual(inventoryTabImage, showInventory);
+            SetInventoryTabVisual(weaponsTabImage, !showInventory);
+            EndInventoryItemDrag();
+        }
+
+        private static void SetInventoryTabVisual(Image image, bool active)
+        {
+            if (image == null)
+            {
+                return;
+            }
+
+            image.color = active
+                ? new Color(0.16f, 0.2f, 0.27f, 0.98f)
+                : new Color(0.055f, 0.064f, 0.08f, 0.92f);
+        }
+
         private Sprite GetItemSprite(DreamyItemId itemId)
         {
             Sprite sprite = visualCatalog != null ? visualCatalog.GetItemSprite(itemId) : null;
@@ -1403,30 +1766,52 @@ namespace Dreamy
                 return string.Empty;
             }
 
-            return value.Length <= 9 ? value : value.Substring(0, 8) + ".";
+            return value.Length <= 12 ? value : value.Substring(0, 11) + ".";
         }
 
         private void BuildInventoryWindow(Transform parent)
         {
-            inventoryWindow = CreatePanel(parent, "Prototype Inventory Window", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(920f, 660f));
+            inventoryWindow = CreatePanel(parent, "Prototype Inventory Window", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             Image panelImage = inventoryWindow.GetComponent<Image>();
             if (panelImage != null)
             {
                 inventoryWindowImage = panelImage;
-                panelImage.color = new Color(0.025f, 0.032f, 0.045f, 0.96f);
+                panelImage.color = new Color(0.015f, 0.02f, 0.03f, 0.97f);
                 panelImage.raycastTarget = true;
             }
 
-            inventoryTitleLabel = CreateText(inventoryWindow.transform, "Inventory 0/" + InventorySlotCount, 30, TextAnchor.MiddleLeft, new Vector2(28f, -22f), new Vector2(520f, 46f));
-            closeInventoryButton = CreateButton(inventoryWindow.transform, "X", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -22f), new Vector2(54f, 46f));
+            inventoryTabButton = CreateInventoryTab(inventoryWindow.transform, "INVENTORY", new Vector2(54f, -34f), true);
+            inventoryTabImage = inventoryTabButton.GetComponent<Image>();
+            weaponsTabButton = CreateInventoryTab(inventoryWindow.transform, "WEAPONS", new Vector2(298f, -34f), false);
+            weaponsTabImage = weaponsTabButton.GetComponent<Image>();
+            closeInventoryButton = CreateButton(inventoryWindow.transform, "X", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-46f, -36f), new Vector2(72f, 64f));
+
+            inventoryTabContent = new GameObject("Inventory Tab Content");
+            inventoryTabContent.transform.SetParent(inventoryWindow.transform, false);
+            RectTransform inventoryContentRect = inventoryTabContent.AddComponent<RectTransform>();
+            inventoryContentRect.anchorMin = Vector2.zero;
+            inventoryContentRect.anchorMax = Vector2.one;
+            inventoryContentRect.offsetMin = Vector2.zero;
+            inventoryContentRect.offsetMax = Vector2.zero;
+
+            weaponsTabContent = new GameObject("Weapons Tab Content");
+            weaponsTabContent.transform.SetParent(inventoryWindow.transform, false);
+            RectTransform weaponsContentRect = weaponsTabContent.AddComponent<RectTransform>();
+            weaponsContentRect.anchorMin = Vector2.zero;
+            weaponsContentRect.anchorMax = Vector2.one;
+            weaponsContentRect.offsetMin = Vector2.zero;
+            weaponsContentRect.offsetMax = Vector2.zero;
+
+            GameObject bagPanel = CreateInventorySection(inventoryTabContent.transform, "Inventory Bag Panel", "BAG", new Vector2(54f, -122f), new Vector2(930f, 820f));
+            inventoryTitleLabel = CreateText(bagPanel.transform, "Inventory 0/" + InventorySlotCount, 30, TextAnchor.MiddleRight, new Vector2(578f, -24f), new Vector2(304f, 44f));
 
             GameObject gridRoot = new GameObject("Inventory Grid");
-            gridRoot.transform.SetParent(inventoryWindow.transform, false);
+            gridRoot.transform.SetParent(bagPanel.transform, false);
             RectTransform gridRect = gridRoot.AddComponent<RectTransform>();
             gridRect.anchorMin = new Vector2(0f, 1f);
             gridRect.anchorMax = new Vector2(0f, 1f);
             gridRect.pivot = new Vector2(0f, 1f);
-            gridRect.anchoredPosition = new Vector2(44f, -104f);
+            gridRect.anchoredPosition = new Vector2(38f, -92f);
             gridRect.sizeDelta = new Vector2(
                 InventoryColumns * InventorySlotSize + (InventoryColumns - 1) * InventorySlotGap,
                 InventoryRows * InventorySlotSize + (InventoryRows - 1) * InventorySlotGap);
@@ -1439,6 +1824,16 @@ namespace Dreamy
                     CreateInventorySlot(gridRoot.transform, index, row, column);
                 }
             }
+
+            GameObject consumablePanel = CreateInventorySection(inventoryTabContent.transform, "Consumable Panel", "CONSUMABLE", new Vector2(1024f, -122f), new Vector2(840f, 236f));
+            BuildConsumableLane(consumablePanel.transform);
+
+            GameObject quickPanel = CreateInventorySection(inventoryTabContent.transform, "Quick Slot Panel", "QUICK SLOT", new Vector2(1024f, -654f), new Vector2(840f, 300f));
+            BuildQuickSlots(quickPanel.transform);
+
+            CreateInventorySection(inventoryTabContent.transform, "Inventory Middle Draft Panel", "ITEM PREVIEW", new Vector2(1024f, -392f), new Vector2(840f, 214f));
+            BuildWeaponsMockup(weaponsTabContent.transform);
+            SelectInventoryTab(true);
 
             inventoryWindow.SetActive(false);
         }
@@ -1475,15 +1870,151 @@ namespace Dreamy
             iconRect.anchorMax = new Vector2(0.5f, 0.5f);
             iconRect.pivot = new Vector2(0.5f, 0.5f);
             iconRect.anchoredPosition = new Vector2(0f, 8f);
-            iconRect.sizeDelta = new Vector2(42f, 42f);
+            iconRect.sizeDelta = new Vector2(48f, 48f);
 
-            Text quantity = CreateText(slot.transform, string.Empty, 14, TextAnchor.UpperRight, new Vector2(6f, -5f), new Vector2(64f, 20f));
+            Text quantity = CreateText(slot.transform, string.Empty, 16, TextAnchor.UpperRight, new Vector2(8f, -6f), new Vector2(60f, 22f));
             AddTextOutline(quantity);
             inventorySlotQuantities[index] = quantity;
 
-            Text itemName = CreateText(slot.transform, string.Empty, 11, TextAnchor.MiddleCenter, new Vector2(4f, -54f), new Vector2(68f, 18f));
+            Text itemName = CreateText(slot.transform, string.Empty, 12, TextAnchor.MiddleCenter, new Vector2(6f, -56f), new Vector2(64f, 18f));
             AddTextOutline(itemName);
             inventorySlotNames[index] = itemName;
+        }
+
+        private Button CreateInventoryTab(Transform parent, string label, Vector2 position, bool active)
+        {
+            Button button = CreateButton(parent, label, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), position, new Vector2(220f, 64f));
+            Image image = button.GetComponent<Image>();
+            if (image != null)
+            {
+                image.color = active ? new Color(0.16f, 0.2f, 0.27f, 0.98f) : new Color(0.055f, 0.064f, 0.08f, 0.92f);
+            }
+
+            Text text = button.GetComponentInChildren<Text>();
+            if (text != null)
+            {
+                text.fontSize = 24;
+                text.fontStyle = FontStyle.Bold;
+                AddTextOutline(text);
+            }
+
+            return button;
+        }
+
+        private GameObject CreateInventorySection(Transform parent, string name, string title, Vector2 position, Vector2 size)
+        {
+            GameObject section = CreatePanel(parent, name, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), position, size);
+            Image image = section.GetComponent<Image>();
+            if (image != null)
+            {
+                image.color = new Color(0.035f, 0.044f, 0.058f, 0.88f);
+                image.raycastTarget = true;
+            }
+
+            Outline outline = section.AddComponent<Outline>();
+            outline.effectColor = new Color(1f, 1f, 1f, 0.18f);
+            outline.effectDistance = new Vector2(2f, -2f);
+
+            Text heading = CreateText(section.transform, title, 30, TextAnchor.MiddleLeft, new Vector2(26f, -22f), new Vector2(size.x - 52f, 46f));
+            heading.fontStyle = FontStyle.Bold;
+            heading.color = new Color(0.96f, 0.92f, 0.78f, 1f);
+            AddTextOutline(heading);
+            return section;
+        }
+
+        private void BuildConsumableLane(Transform parent)
+        {
+            for (int i = 0; i < ConsumableSlotCount; i++)
+            {
+                GameObject slot = CreateDraftSlot(parent, "Consumable Slot " + (i + 1).ToString("00"), new Vector2(36f + i * (ConsumableSlotSize + ConsumableSlotGap), -88f), new Vector2(ConsumableSlotSize, ConsumableSlotSize), out Image background, out Image icon);
+                consumableSlotBackgrounds[i] = background;
+                consumableSlotIcons[i] = icon;
+                consumableSlotQuantities[i] = CreateText(slot.transform, string.Empty, 18, TextAnchor.UpperRight, new Vector2(10f, -8f), new Vector2(74f, 24f));
+                AddTextOutline(consumableSlotQuantities[i]);
+                consumableSlotNames[i] = CreateText(parent, string.Empty, 16, TextAnchor.MiddleCenter, new Vector2(36f + i * (ConsumableSlotSize + ConsumableSlotGap), -190f), new Vector2(ConsumableSlotSize, 24f));
+                AddTextOutline(consumableSlotNames[i]);
+                DreamyPrototypeInventoryDragSource dragSource = slot.AddComponent<DreamyPrototypeInventoryDragSource>();
+                dragSource.Bind(this, DreamyItemId.Custom, string.Empty, null, false);
+                consumableDragSources[i] = dragSource;
+            }
+        }
+
+        private void BuildQuickSlots(Transform parent)
+        {
+            for (int i = 0; i < QuickSlotCount; i++)
+            {
+                GameObject slot = CreateDraftSlot(parent, "Quick Slot " + (i + 1).ToString("00"), new Vector2(64f + i * (QuickSlotSize + QuickSlotGap), -74f), new Vector2(QuickSlotSize, QuickSlotSize), out Image background, out Image icon);
+                quickSlotBackgrounds[i] = background;
+                quickSlotIcons[i] = icon;
+
+                DreamyPrototypeQuickSlotDropTarget dropTarget = slot.AddComponent<DreamyPrototypeQuickSlotDropTarget>();
+                dropTarget.Bind(this, i);
+
+                quickSlotLabels[i] = CreateText(slot.transform, "Q" + (i + 1), 24, TextAnchor.UpperLeft, new Vector2(14f, -12f), new Vector2(88f, 34f));
+                quickSlotLabels[i].fontStyle = FontStyle.Bold;
+                AddTextOutline(quickSlotLabels[i]);
+                quickSlotNames[i] = CreateText(slot.transform, string.Empty, 20, TextAnchor.MiddleCenter, new Vector2(14f, -130f), new Vector2(146f, 30f));
+                AddTextOutline(quickSlotNames[i]);
+            }
+        }
+
+        private void BuildWeaponsMockup(Transform parent)
+        {
+            GameObject storagePanel = CreateInventorySection(parent, "Weapon Storage Panel", "WEAPON STORAGE", new Vector2(54f, -122f), new Vector2(930f, 820f));
+            const int weaponColumns = 7;
+            const int weaponRows = 4;
+            const float weaponSlotSize = 96f;
+            const float weaponSlotGap = 22f;
+            for (int row = 0; row < weaponRows; row++)
+            {
+                for (int column = 0; column < weaponColumns; column++)
+                {
+                    CreateDraftSlot(storagePanel.transform, "Weapon Draft Slot", new Vector2(48f + column * (weaponSlotSize + weaponSlotGap), -102f - row * (weaponSlotSize + weaponSlotGap)), new Vector2(weaponSlotSize, weaponSlotSize), out _, out _);
+                }
+            }
+
+            GameObject equipPanel = CreateInventorySection(parent, "Equipped Weapons Panel", "EQUIPPED", new Vector2(1024f, -122f), new Vector2(840f, 820f));
+            CreateDraftSlot(equipPanel.transform, "Primary Weapon Slot", new Vector2(72f, -118f), new Vector2(206f, 206f), out _, out _);
+            CreateDraftSlot(equipPanel.transform, "Secondary Weapon Slot", new Vector2(326f, -118f), new Vector2(206f, 206f), out _, out _);
+            CreateDraftSlot(equipPanel.transform, "Tool Weapon Slot", new Vector2(590f, -118f), new Vector2(152f, 152f), out _, out _);
+            CreateDraftSlot(equipPanel.transform, "Weapon Mod Slot A", new Vector2(96f, -398f), new Vector2(138f, 138f), out _, out _);
+            CreateDraftSlot(equipPanel.transform, "Weapon Mod Slot B", new Vector2(282f, -398f), new Vector2(138f, 138f), out _, out _);
+            CreateDraftSlot(equipPanel.transform, "Weapon Mod Slot C", new Vector2(468f, -398f), new Vector2(138f, 138f), out _, out _);
+        }
+
+        private GameObject CreateDraftSlot(Transform parent, string name, Vector2 position, Vector2 size, out Image background, out Image icon)
+        {
+            GameObject slot = new GameObject(name);
+            slot.transform.SetParent(parent, false);
+            background = slot.AddComponent<Image>();
+            background.sprite = CreateUiSprite(Color.white);
+            background.color = new Color(0.055f, 0.068f, 0.085f, 0.82f);
+            background.raycastTarget = true;
+
+            Outline outline = slot.AddComponent<Outline>();
+            outline.effectColor = new Color(1f, 1f, 1f, 0.2f);
+            outline.effectDistance = new Vector2(2f, -2f);
+
+            RectTransform rect = slot.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = size;
+
+            GameObject iconObject = new GameObject("Icon");
+            iconObject.transform.SetParent(slot.transform, false);
+            icon = iconObject.AddComponent<Image>();
+            icon.preserveAspect = true;
+            icon.raycastTarget = false;
+            icon.color = new Color(1f, 1f, 1f, 0f);
+
+            RectTransform iconRect = icon.GetComponent<RectTransform>();
+            iconRect.anchorMin = Vector2.zero;
+            iconRect.anchorMax = Vector2.one;
+            iconRect.offsetMin = new Vector2(12f, 12f);
+            iconRect.offsetMax = new Vector2(-12f, -12f);
+            return slot;
         }
 
         private static GameObject CreatePanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPosition, Vector2 size)
@@ -1738,6 +2269,102 @@ namespace Dreamy
             if (text != null)
             {
                 text.text = value;
+            }
+        }
+    }
+
+    public sealed class DreamyPrototypeInventoryDragSource : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+    {
+        private DreamyPrototypeRuntimeHud owner;
+        private DreamyItemId itemId;
+        private string displayName;
+        private Sprite sprite;
+        private bool canDrag;
+
+        public void Bind(DreamyPrototypeRuntimeHud hud, DreamyItemId sourceItemId, string sourceDisplayName, Sprite sourceSprite, bool enabled)
+        {
+            owner = hud;
+            itemId = sourceItemId;
+            displayName = sourceDisplayName;
+            sprite = sourceSprite;
+            canDrag = enabled;
+        }
+
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            if (!canDrag || owner == null)
+            {
+                return;
+            }
+
+            owner.BeginInventoryItemDrag(itemId, displayName, sprite, eventData);
+        }
+
+        public void OnDrag(PointerEventData eventData)
+        {
+            if (!canDrag || owner == null)
+            {
+                return;
+            }
+
+            owner.UpdateInventoryItemDrag(eventData);
+        }
+
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            if (owner != null)
+            {
+                owner.EndInventoryItemDrag();
+            }
+        }
+    }
+
+    public sealed class DreamyPrototypeQuickSlotDropTarget : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPointerExitHandler
+    {
+        private DreamyPrototypeRuntimeHud owner;
+        private int quickSlotIndex;
+        private Image background;
+        private Color baseColor;
+
+        public void Bind(DreamyPrototypeRuntimeHud hud, int targetQuickSlotIndex)
+        {
+            owner = hud;
+            quickSlotIndex = targetQuickSlotIndex;
+            background = GetComponent<Image>();
+            if (background != null)
+            {
+                baseColor = background.color;
+            }
+        }
+
+        public void OnDrop(PointerEventData eventData)
+        {
+            if (owner != null)
+            {
+                owner.AssignDraggedItemToQuickSlot(quickSlotIndex);
+            }
+
+            RestoreColor();
+        }
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            if (background != null)
+            {
+                background.color = new Color(0.24f, 0.3f, 0.38f, 0.98f);
+            }
+        }
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            RestoreColor();
+        }
+
+        private void RestoreColor()
+        {
+            if (background != null)
+            {
+                background.color = baseColor;
             }
         }
     }
