@@ -24,18 +24,6 @@ namespace Dreamy.Editor
         private const string HurtParameter = "Hurt";
         private const string HitEventName = "DreamyAnimationHitMarker";
 
-        private static readonly AxionAnimationDefinition[] Animations =
-        {
-            new AxionAnimationDefinition("Idle", "Idle.png", 7, 5f, true, -1f),
-            new AxionAnimationDefinition("Run", "Run.png", 8, 13f, true, -1f),
-            new AxionAnimationDefinition("Dash", "Dash.png", 12, 24f, false, -1f),
-            new AxionAnimationDefinition("Hurt", "Hurt.png", 3, 12f, false, -1f),
-            new AxionAnimationDefinition("Attack 1", "Attack 3.png", 9, 24f, false, 0.45f, 0, 23),
-            new AxionAnimationDefinition("Attack 2", "Attack 3.png", 6, 24f, false, 0.22f, 9, 23),
-            new AxionAnimationDefinition("Attack 3", "Attack 3.png", 8, 24f, false, 0.18f, 15, 23),
-            new AxionAnimationDefinition("Super Smash", "Super Smash.png", 15, 18f, false, 0.52f)
-        };
-
         static DreamyAxionAnimatorBuilder()
         {
             EditorApplication.delayCall += EnsureAnimatorAssets;
@@ -52,23 +40,76 @@ namespace Dreamy.Editor
 
             EnsureFolder(GeneratedFolder);
             EnsureFolder(AnimatorFolder);
+            AxionAnimationDefinition[] animations = BuildAnimationDefinitions();
 
-            for (int i = 0; i < Animations.Length; i++)
+            for (int i = 0; i < animations.Length; i++)
             {
-                string sheetPath = SheetPath(Animations[i].FileName);
-                ConfigureMultipleSpriteSheet(sheetPath, Animations[i].SourceFrameCount);
+                string sheetPath = SheetPath(animations[i].FileName);
+                ConfigureMultipleSpriteSheet(sheetPath, animations[i].SourceFrameCount);
             }
 
             AssetDatabase.Refresh();
 
-            for (int i = 0; i < Animations.Length; i++)
+            for (int i = 0; i < animations.Length; i++)
             {
-                BuildClip(Animations[i]);
+                BuildClip(animations[i]);
             }
 
             BuildController();
             AssetDatabase.SaveAssets();
             DreamyPrototypeVisualCatalogBuilder.EnsureCatalog();
+        }
+
+        private static AxionAnimationDefinition[] BuildAnimationDefinitions()
+        {
+            DreamyCombatTuningProfile profile = DreamyCombatTuningProfile.LoadDefault();
+            if (profile != null)
+            {
+                profile.EnsureDefaults();
+            }
+
+            return new[]
+            {
+                new AxionAnimationDefinition("Idle", "Idle.png", 7, 5f, true, -1f),
+                new AxionAnimationDefinition("Run", "Run.png", 8, 13f, true, -1f),
+                new AxionAnimationDefinition("Dash", "Dash.png", 12, 24f, false, -1f),
+                new AxionAnimationDefinition("Hurt", "Hurt.png", 3, 12f, false, -1f),
+                BuildAttackAnimationDefinition("Attack 1", profile != null ? profile.GetNormalAttack(0) : null, 9, 0, 0.45f),
+                BuildAttackAnimationDefinition("Attack 2", profile != null ? profile.GetNormalAttack(1) : null, 6, 9, 0.22f),
+                BuildAttackAnimationDefinition("Attack 3", profile != null ? profile.GetNormalAttack(2) : null, 8, 15, 0.18f),
+                BuildSpecialAnimationDefinition(profile != null ? profile.SpecialAttack : null)
+            };
+        }
+
+        private static AxionAnimationDefinition BuildAttackAnimationDefinition(
+            string name,
+            DreamyCombatActionTuning tuning,
+            int fallbackFrameCount,
+            int fallbackFirstFrameIndex,
+            float fallbackHitMarker)
+        {
+            return new AxionAnimationDefinition(
+                name,
+                "Attack 3.png",
+                tuning != null ? tuning.FrameCount : fallbackFrameCount,
+                24f,
+                false,
+                tuning != null ? tuning.HitMarkerNormalizedTime : fallbackHitMarker,
+                tuning != null ? tuning.SourceFrameStart : fallbackFirstFrameIndex,
+                tuning != null ? tuning.SourceFrameTotal : 23);
+        }
+
+        private static AxionAnimationDefinition BuildSpecialAnimationDefinition(DreamyCombatActionTuning tuning)
+        {
+            return new AxionAnimationDefinition(
+                "Super Smash",
+                "Super Smash.png",
+                tuning != null ? tuning.FrameCount : 15,
+                18f,
+                false,
+                tuning != null ? tuning.HitMarkerNormalizedTime : 0.52f,
+                tuning != null ? tuning.SourceFrameStart : 0,
+                tuning != null ? tuning.SourceFrameTotal : 15);
         }
 
         private static void HandlePlayModeStateChanged(PlayModeStateChange state)

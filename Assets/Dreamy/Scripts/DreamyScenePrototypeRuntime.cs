@@ -373,15 +373,39 @@ namespace Dreamy
 
             Texture2D[] axionAttackSheets = visualCatalog.AxionCharacterAttackSheets;
             Texture2D comboSheet = axionAttackSheets.Length >= 3 ? axionAttackSheets[2] : visualCatalog.AxionCharacterAttackSheet;
-            Texture2D[] comboAttackSheets =
+            DreamyCombatTuningProfile combatTuning = DreamyCombatTuningProfile.LoadDefault();
+            if (combatTuning != null)
             {
-                comboSheet,
-                comboSheet,
-                comboSheet,
-                comboSheet,
-                comboSheet,
-                comboSheet
-            };
+                combatTuning.EnsureDefaults();
+            }
+
+            int comboStepCount = combatTuning != null && combatTuning.ComboStepCount > 0 ? combatTuning.ComboStepCount : 6;
+            Texture2D[] comboAttackSheets = new Texture2D[comboStepCount];
+            int[] sourceFrameCounts = new int[comboStepCount];
+            int[] rowCounts = new int[comboStepCount];
+            int[] startFrames = new int[comboStepCount];
+            int[] frameCounts = new int[comboStepCount];
+            int[] animatorStates = new int[comboStepCount];
+            int[] attackParts = new int[comboStepCount];
+            float[] frameSpeedMultipliers = new float[comboStepCount];
+            int[] defaultStartFrames = { 0, 0, 9, 0, 9, 15 };
+            int[] defaultFrameCounts = { 9, 9, 6, 9, 6, 8 };
+            int[] defaultAnimatorStates = { 0, 0, 1, 0, 1, 2 };
+            int[] defaultAttackParts = { 0, 0, 1, 0, 1, 2 };
+            float[] defaultFrameSpeedMultipliers = { 1f, 1f, 1f, 1f, 1f, 0.5f };
+            for (int i = 0; i < comboStepCount; i++)
+            {
+                int fallbackIndex = Mathf.Clamp(i, 0, defaultStartFrames.Length - 1);
+                DreamyCombatActionTuning actionTuning = combatTuning != null ? combatTuning.GetComboAction(i) : null;
+                comboAttackSheets[i] = comboSheet;
+                sourceFrameCounts[i] = actionTuning != null ? actionTuning.SourceFrameTotal : 23;
+                rowCounts[i] = 1;
+                startFrames[i] = actionTuning != null ? actionTuning.SourceFrameStart : defaultStartFrames[fallbackIndex];
+                frameCounts[i] = actionTuning != null ? actionTuning.FrameCount : defaultFrameCounts[fallbackIndex];
+                animatorStates[i] = actionTuning != null ? actionTuning.AnimatorStateIndex : defaultAnimatorStates[fallbackIndex];
+                attackParts[i] = actionTuning != null ? actionTuning.AttackPartIndex : defaultAttackParts[fallbackIndex];
+                frameSpeedMultipliers[i] = actionTuning != null ? actionTuning.FrameSpeedMultiplier : defaultFrameSpeedMultipliers[fallbackIndex];
+            }
 
             player.ConfigureCharacterVisuals(
                 visualCatalog.AxionCharacterIdleSheet,
@@ -393,13 +417,13 @@ namespace Dreamy
                 1,
                 -1,
                 comboAttackSheets,
-                new[] { 23, 23, 23, 23, 23, 23 },
-                new[] { 1, 1, 1, 1, 1, 1 },
-                new[] { 0, 0, 9, 0, 9, 15 },
-                new[] { 9, 9, 6, 9, 6, 8 },
-                new[] { 0, 0, 1, 0, 1, 2 },
-                new[] { 0, 0, 1, 0, 1, 2 },
-                new[] { 1f, 1f, 1f, 1f, 1f, 0.5f },
+                sourceFrameCounts,
+                rowCounts,
+                startFrames,
+                frameCounts,
+                animatorStates,
+                attackParts,
+                frameSpeedMultipliers,
                 AxionCharacterPixelsPerUnit,
                 5f,
                 13f,

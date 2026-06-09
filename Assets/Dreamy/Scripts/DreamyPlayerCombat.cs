@@ -39,6 +39,9 @@ namespace Dreamy
         [SerializeField] private float specialAttackAnimationDuration = 0.85f;
         [SerializeField] private float specialStaminaCost = 30f;
         [SerializeField] private float specialKnockbackForce = 8.5f;
+        [SerializeField] private DreamyCombatTuningProfile tuningProfile;
+        [SerializeField] private bool loadDefaultTuningProfile = true;
+        [SerializeField] private bool showCombatTuningGizmos = true;
 
         public event Action<IDreamyCombatTarget> AttackHit;
         public event Action AttackMissed;
@@ -54,6 +57,7 @@ namespace Dreamy
         private float pendingAttackDamage;
         private float pendingAttackRange;
         private float pendingAttackHitboxWidth;
+        private float pendingAttackOriginDistance;
         private float pendingAttackKnockbackForce;
         private float pendingAttackSlowMultiplier = 1f;
         private float pendingAttackSlowDuration;
@@ -61,11 +65,18 @@ namespace Dreamy
         private bool pendingAttackIsSpecial;
         private bool bufferedAttack;
         private bool pendingAttackHit;
+        private readonly List<PendingCombatVfxEvent> pendingCombatVfxEvents = new List<PendingCombatVfxEvent>();
 
         private void Awake()
         {
             stats = GetComponent<DreamyCharacterStats>();
             player = GetComponent<DreamyMobilePlayer>();
+            if (loadDefaultTuningProfile && tuningProfile == null)
+            {
+                tuningProfile = DreamyCombatTuningProfile.LoadDefault();
+            }
+
+            ApplyTuningProfile(tuningProfile);
         }
 
         private void Update()
@@ -85,11 +96,60 @@ namespace Dreamy
                 ResolvePendingAttack();
             }
 
+            ResolvePendingCombatVfxEvents();
+
             if (bufferedAttack && CanStartBufferedAttack())
             {
                 bufferedAttack = false;
                 TryAttack();
             }
+        }
+
+        public void ApplyTuningProfile(DreamyCombatTuningProfile profile)
+        {
+            tuningProfile = profile;
+            if (tuningProfile == null)
+            {
+                return;
+            }
+
+            tuningProfile.EnsureDefaults();
+            attackDamage = tuningProfile.BaseDamage;
+            attackAnimationDuration = tuningProfile.NormalAttackMinimumDuration;
+            staminaCost = tuningProfile.NormalStaminaCost;
+            comboResetDelay = tuningProfile.ComboResetDelay;
+            comboInputBufferWindow = tuningProfile.ComboInputBufferWindow;
+            specialAttackAnimationDuration = tuningProfile.SpecialAttackMinimumDuration;
+            specialStaminaCost = tuningProfile.SpecialStaminaCost;
+            specialAttackCooldown = tuningProfile.SpecialCooldown;
+
+            DreamyCombatActionTuning attack1 = tuningProfile.GetNormalAttack(0);
+            DreamyCombatActionTuning attack2 = tuningProfile.GetNormalAttack(1);
+            DreamyCombatActionTuning attack3 = tuningProfile.GetNormalAttack(2);
+            attackHitMarkerNormalizedTime = attack1.HitMarkerNormalizedTime;
+            attack2HitMarkerNormalizedTime = attack2.HitMarkerNormalizedTime;
+            attack3HitMarkerNormalizedTime = attack3.HitMarkerNormalizedTime;
+            attackRange = attack1.HitboxLength;
+            attackHitboxWidth = attack1.HitboxWidth;
+            attackOriginDistance = attack1.OriginDistance;
+            attack2DamageMultiplier = attack2.DamageMultiplier;
+            attack3DamageMultiplier = attack3.DamageMultiplier;
+            attack2HitboxLengthMultiplier = attackRange > 0f ? attack2.HitboxLength / attackRange : 1f;
+            attack2HitboxWidthMultiplier = attackHitboxWidth > 0f ? attack2.HitboxWidth / attackHitboxWidth : 1f;
+            attack3HitboxLengthMultiplier = attackRange > 0f ? attack3.HitboxLength / attackRange : 1f;
+            attack3HitboxWidthMultiplier = attackHitboxWidth > 0f ? attack3.HitboxWidth / attackHitboxWidth : 1f;
+            knockbackForce = attack1.KnockbackForce;
+            attack3SlowMultiplier = attack3.SlowMultiplier;
+            attack3SlowDuration = attack3.SlowDuration;
+            attack3StunDuration = attack3.StunDuration;
+
+            DreamyCombatActionTuning special = tuningProfile.SpecialAttack;
+            specialDamageMultiplier = special.DamageMultiplier;
+            specialAttackRange = special.HitboxLength;
+            specialAttackHitboxWidth = special.HitboxWidth;
+            specialAttackWindup = special.OriginDistance;
+            specialHitMarkerNormalizedTime = special.HitMarkerNormalizedTime;
+            specialKnockbackForce = special.KnockbackForce;
         }
 
         public void QueueAttack()
@@ -117,6 +177,7 @@ namespace Dreamy
                 player.ResetAttackCombo();
             }
 
+            pendingCombatVfxEvents.Clear();
             float attackSpeedMultiplier = ResolveAttackSpeedMultiplier();
             Vector2 attackDirection = ResolveAttackDirection();
             float animationDuration = Mathf.Max(0.05f, attackAnimationDuration);
@@ -126,19 +187,22 @@ namespace Dreamy
             }
 
             int attackPartIndex = player != null ? player.LastAttackPartIndex : 0;
+            DreamyCombatActionTuning attackTuning = GetNormalAttackTuning(attackPartIndex);
             currentAttackEndsAt = Time.time + animationDuration;
             nextAttackTime = currentAttackEndsAt;
             pendingAttackHitsAt = Time.time + ResolveHitDelay(animationDuration, attackWindup, GetAttackPartHitMarkerNormalizedTime(attackPartIndex));
             pendingAttackDirection = attackDirection;
             pendingAttackDamage = ResolvePlayerDamage(GetAttackPartDamageMultiplier(attackPartIndex));
-            pendingAttackRange = attackRange * GetAttackPartLengthMultiplier(attackPartIndex);
-            pendingAttackHitboxWidth = attackHitboxWidth * GetAttackPartWidthMultiplier(attackPartIndex);
-            pendingAttackKnockbackForce = knockbackForce;
-            pendingAttackSlowMultiplier = attackPartIndex == 2 ? attack3SlowMultiplier : 1f;
-            pendingAttackSlowDuration = attackPartIndex == 2 ? attack3SlowDuration : 0f;
-            pendingAttackStunDuration = attackPartIndex == 2 ? attack3StunDuration : 0f;
+            pendingAttackRange = GetAttackPartHitboxLength(attackPartIndex);
+            pendingAttackHitboxWidth = GetAttackPartHitboxWidth(attackPartIndex);
+            pendingAttackOriginDistance = GetAttackPartOriginDistance(attackPartIndex);
+            pendingAttackKnockbackForce = GetAttackPartKnockbackForce(attackPartIndex);
+            pendingAttackSlowMultiplier = attackTuning != null ? attackTuning.SlowMultiplier : attackPartIndex == 2 ? attack3SlowMultiplier : 1f;
+            pendingAttackSlowDuration = attackTuning != null ? attackTuning.SlowDuration : attackPartIndex == 2 ? attack3SlowDuration : 0f;
+            pendingAttackStunDuration = attackTuning != null ? attackTuning.StunDuration : attackPartIndex == 2 ? attack3StunDuration : 0f;
             pendingAttackIsSpecial = false;
             pendingAttackHit = true;
+            ScheduleCombatVfxEvents(attackTuning, animationDuration, attackDirection);
 
             return true;
         }
@@ -155,11 +219,13 @@ namespace Dreamy
                 return false;
             }
 
+            pendingCombatVfxEvents.Clear();
             if (player != null)
             {
                 player.ResetAttackCombo();
             }
 
+            DreamyCombatActionTuning specialTuning = GetSpecialAttackTuning();
             float attackSpeedMultiplier = ResolveAttackSpeedMultiplier();
             Vector2 attackDirection = ResolveAttackDirection();
             float animationDuration = Mathf.Max(0.05f, specialAttackAnimationDuration);
@@ -176,13 +242,15 @@ namespace Dreamy
             pendingAttackDamage = ResolvePlayerDamage(specialDamageMultiplier);
             pendingAttackRange = specialAttackRange;
             pendingAttackHitboxWidth = specialAttackHitboxWidth;
+            pendingAttackOriginDistance = specialTuning != null ? specialTuning.OriginDistance : specialAttackWindup;
             pendingAttackKnockbackForce = specialKnockbackForce;
-            pendingAttackSlowMultiplier = 1f;
-            pendingAttackSlowDuration = 0f;
-            pendingAttackStunDuration = 0f;
+            pendingAttackSlowMultiplier = specialTuning != null ? specialTuning.SlowMultiplier : 1f;
+            pendingAttackSlowDuration = specialTuning != null ? specialTuning.SlowDuration : 0f;
+            pendingAttackStunDuration = specialTuning != null ? specialTuning.StunDuration : 0f;
             pendingAttackIsSpecial = true;
             pendingAttackHit = true;
             bufferedAttack = false;
+            ScheduleCombatVfxEvents(specialTuning, animationDuration, attackDirection);
             return true;
         }
 
@@ -202,7 +270,8 @@ namespace Dreamy
             List<IDreamyCombatTarget> targets = FindTargetsInSlashHitbox(
                 pendingAttackDirection,
                 pendingAttackRange,
-                pendingAttackHitboxWidth);
+                pendingAttackHitboxWidth,
+                pendingAttackOriginDistance);
             if (targets.Count == 0)
             {
                 AttackMissed?.Invoke();
@@ -301,6 +370,12 @@ namespace Dreamy
 
         private float GetAttackPartDamageMultiplier(int attackPartIndex)
         {
+            DreamyCombatActionTuning tuning = GetNormalAttackTuning(attackPartIndex);
+            if (tuning != null)
+            {
+                return tuning.DamageMultiplier;
+            }
+
             switch (attackPartIndex)
             {
                 case 1:
@@ -314,6 +389,11 @@ namespace Dreamy
 
         private float GetAttackPartLengthMultiplier(int attackPartIndex)
         {
+            if (tuningProfile != null)
+            {
+                return attackRange > 0f ? GetAttackPartHitboxLength(attackPartIndex) / attackRange : 1f;
+            }
+
             switch (attackPartIndex)
             {
                 case 1:
@@ -327,6 +407,11 @@ namespace Dreamy
 
         private float GetAttackPartWidthMultiplier(int attackPartIndex)
         {
+            if (tuningProfile != null)
+            {
+                return attackHitboxWidth > 0f ? GetAttackPartHitboxWidth(attackPartIndex) / attackHitboxWidth : 1f;
+            }
+
             switch (attackPartIndex)
             {
                 case 1:
@@ -340,6 +425,12 @@ namespace Dreamy
 
         private float GetAttackPartHitMarkerNormalizedTime(int attackPartIndex)
         {
+            DreamyCombatActionTuning tuning = GetNormalAttackTuning(attackPartIndex);
+            if (tuning != null)
+            {
+                return tuning.HitMarkerNormalizedTime;
+            }
+
             switch (attackPartIndex)
             {
                 case 1:
@@ -349,6 +440,62 @@ namespace Dreamy
                 default:
                     return attackHitMarkerNormalizedTime;
             }
+        }
+
+        private float GetAttackPartHitboxLength(int attackPartIndex)
+        {
+            DreamyCombatActionTuning tuning = GetNormalAttackTuning(attackPartIndex);
+            if (tuning != null)
+            {
+                return tuning.HitboxLength;
+            }
+
+            return attackRange * GetAttackPartLengthMultiplier(attackPartIndex);
+        }
+
+        private float GetAttackPartHitboxWidth(int attackPartIndex)
+        {
+            DreamyCombatActionTuning tuning = GetNormalAttackTuning(attackPartIndex);
+            if (tuning != null)
+            {
+                return tuning.HitboxWidth;
+            }
+
+            return attackHitboxWidth * GetAttackPartWidthMultiplier(attackPartIndex);
+        }
+
+        private float GetAttackPartOriginDistance(int attackPartIndex)
+        {
+            DreamyCombatActionTuning tuning = GetNormalAttackTuning(attackPartIndex);
+            return tuning != null ? tuning.OriginDistance : attackOriginDistance;
+        }
+
+        private float GetAttackPartKnockbackForce(int attackPartIndex)
+        {
+            DreamyCombatActionTuning tuning = GetNormalAttackTuning(attackPartIndex);
+            return tuning != null ? tuning.KnockbackForce : knockbackForce;
+        }
+
+        private DreamyCombatActionTuning GetNormalAttackTuning(int attackPartIndex)
+        {
+            if (tuningProfile == null)
+            {
+                return null;
+            }
+
+            tuningProfile.EnsureDefaults();
+            return tuningProfile.GetNormalAttack(attackPartIndex);
+        }
+
+        private DreamyCombatActionTuning GetSpecialAttackTuning()
+        {
+            if (tuningProfile == null)
+            {
+                return null;
+            }
+
+            tuningProfile.EnsureDefaults();
+            return tuningProfile.SpecialAttack;
         }
 
         private static float ResolveHitDelay(float animationDuration, float fallbackWindup, float normalizedMarkerTime)
@@ -361,7 +508,7 @@ namespace Dreamy
             return Mathf.Min(Mathf.Max(0f, fallbackWindup), Mathf.Max(0.01f, animationDuration) * 0.95f);
         }
 
-        private List<IDreamyCombatTarget> FindTargetsInSlashHitbox(Vector2 attackDirection, float length, float width)
+        private List<IDreamyCombatTarget> FindTargetsInSlashHitbox(Vector2 attackDirection, float length, float width, float originDistance)
         {
             if (attackDirection.sqrMagnitude < 0.01f)
             {
@@ -369,7 +516,7 @@ namespace Dreamy
             }
 
             Vector2 normalizedDirection = attackDirection.normalized;
-            Vector2 origin = (Vector2)transform.position + normalizedDirection * attackOriginDistance;
+            Vector2 origin = (Vector2)transform.position + normalizedDirection * Mathf.Max(0f, originDistance);
             Vector2 perpendicular = new Vector2(-normalizedDirection.y, normalizedDirection.x);
             float hitboxLength = Mathf.Max(0.05f, length);
             float halfWidth = Mathf.Max(0.05f, width) * 0.5f;
@@ -436,6 +583,88 @@ namespace Dreamy
             return Vector2.down;
         }
 
+        private void ScheduleCombatVfxEvents(DreamyCombatActionTuning tuning, float animationDuration, Vector2 attackDirection)
+        {
+            if (tuning == null)
+            {
+                return;
+            }
+
+            DreamyCombatEventTuning[] events = tuning.Events;
+            for (int i = 0; i < events.Length; i++)
+            {
+                DreamyCombatEventTuning combatEvent = events[i];
+                if (combatEvent == null || !combatEvent.Enabled || combatEvent.VfxKind == DreamyCombatVfxKind.None)
+                {
+                    continue;
+                }
+
+                pendingCombatVfxEvents.Add(new PendingCombatVfxEvent(
+                    Time.time + ResolveHitDelay(animationDuration, 0f, combatEvent.NormalizedTime),
+                    combatEvent,
+                    attackDirection));
+            }
+        }
+
+        private void ResolvePendingCombatVfxEvents()
+        {
+            if (pendingCombatVfxEvents.Count == 0)
+            {
+                return;
+            }
+
+            for (int i = pendingCombatVfxEvents.Count - 1; i >= 0; i--)
+            {
+                PendingCombatVfxEvent pendingEvent = pendingCombatVfxEvents[i];
+                if (Time.time < pendingEvent.TriggerTime)
+                {
+                    continue;
+                }
+
+                SpawnCombatVfx(pendingEvent.Event, pendingEvent.Direction);
+                pendingCombatVfxEvents.RemoveAt(i);
+            }
+        }
+
+        private void SpawnCombatVfx(DreamyCombatEventTuning combatEvent, Vector2 attackDirection)
+        {
+            if (combatEvent == null)
+            {
+                return;
+            }
+
+            if (attackDirection.sqrMagnitude < 0.01f)
+            {
+                attackDirection = ResolveAttackDirection();
+            }
+
+            Vector2 forward = attackDirection.sqrMagnitude >= 0.01f ? attackDirection.normalized : Vector2.down;
+            Vector2 side = new Vector2(-forward.y, forward.x);
+            Vector2 offset = combatEvent.Offset;
+            Vector3 spawnPosition = transform.position + (Vector3)(forward * offset.x + side * offset.y);
+            Quaternion rotation = combatEvent.RotateToDirection
+                ? Quaternion.Euler(0f, 0f, Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg)
+                : Quaternion.identity;
+
+            if (combatEvent.VfxKind == DreamyCombatVfxKind.Prefab && combatEvent.Prefab != null)
+            {
+                Instantiate(combatEvent.Prefab, spawnPosition, rotation);
+                return;
+            }
+
+            if (combatEvent.VfxKind == DreamyCombatVfxKind.BuiltInSlash)
+            {
+                GameObject slashObject = new GameObject(combatEvent.Label);
+                slashObject.transform.position = spawnPosition;
+                slashObject.transform.rotation = rotation;
+                SpriteRenderer renderer = slashObject.AddComponent<SpriteRenderer>();
+                renderer.sprite = DreamyAttackSlashEffect.SlashSprite;
+                renderer.color = combatEvent.Color;
+                renderer.sortingOrder = 180;
+                slashObject.AddComponent<DreamyAttackSlashEffect>().Configure(combatEvent.Duration, combatEvent.StartScale, combatEvent.EndScale);
+            }
+        }
+
         private void OnValidate()
         {
             attackDamage = Mathf.Max(0f, attackDamage);
@@ -474,10 +703,22 @@ namespace Dreamy
 
         private void OnDrawGizmosSelected()
         {
+            if (!showCombatTuningGizmos)
+            {
+                return;
+            }
+
             Vector2 direction = ResolveGizmoDirection();
-            DrawSlashHitbox(direction, attackRange, attackHitboxWidth, new Color(1f, 0.82f, 0.18f, 0.72f));
-            DrawSlashHitbox(direction, attackRange * attack3HitboxLengthMultiplier, attackHitboxWidth * attack3HitboxWidthMultiplier, new Color(1f, 0.48f, 0.18f, 0.58f));
-            DrawSlashHitbox(direction, specialAttackRange, specialAttackHitboxWidth, new Color(0.35f, 0.92f, 1f, 0.58f));
+            DrawSlashHitbox(direction, GetAttackPartHitboxLength(0), GetAttackPartHitboxWidth(0), GetAttackPartOriginDistance(0), new Color(1f, 0.82f, 0.18f, 0.72f));
+            DrawSlashHitbox(direction, GetAttackPartHitboxLength(1), GetAttackPartHitboxWidth(1), GetAttackPartOriginDistance(1), new Color(1f, 0.64f, 0.18f, 0.64f));
+            DrawSlashHitbox(direction, GetAttackPartHitboxLength(2), GetAttackPartHitboxWidth(2), GetAttackPartOriginDistance(2), new Color(1f, 0.48f, 0.18f, 0.58f));
+            DreamyCombatActionTuning special = GetSpecialAttackTuning();
+            DrawSlashHitbox(
+                direction,
+                special != null ? special.HitboxLength : specialAttackRange,
+                special != null ? special.HitboxWidth : specialAttackHitboxWidth,
+                special != null ? special.OriginDistance : specialAttackWindup,
+                new Color(0.35f, 0.92f, 1f, 0.58f));
         }
 
         private Vector2 ResolveGizmoDirection()
@@ -496,7 +737,7 @@ namespace Dreamy
             return Vector2.down;
         }
 
-        private void DrawSlashHitbox(Vector2 direction, float length, float width, Color color)
+        private void DrawSlashHitbox(Vector2 direction, float length, float width, float originDistance, Color color)
         {
             if (direction.sqrMagnitude < 0.01f)
             {
@@ -505,7 +746,7 @@ namespace Dreamy
 
             Vector2 forward = direction.normalized;
             Vector2 side = new Vector2(-forward.y, forward.x) * (Mathf.Max(0.05f, width) * 0.5f);
-            Vector3 origin = transform.position + (Vector3)(forward * attackOriginDistance);
+            Vector3 origin = transform.position + (Vector3)(forward * Mathf.Max(0f, originDistance));
             Vector3 front = origin + (Vector3)(forward * Mathf.Max(0.05f, length));
             Vector3 backLeft = origin + (Vector3)side;
             Vector3 backRight = origin - (Vector3)side;
@@ -516,6 +757,20 @@ namespace Dreamy
             Gizmos.DrawLine(frontLeft, frontRight);
             Gizmos.DrawLine(frontRight, backRight);
             Gizmos.DrawLine(backRight, backLeft);
+        }
+
+        private readonly struct PendingCombatVfxEvent
+        {
+            public PendingCombatVfxEvent(float triggerTime, DreamyCombatEventTuning combatEvent, Vector2 direction)
+            {
+                TriggerTime = triggerTime;
+                Event = combatEvent;
+                Direction = direction;
+            }
+
+            public float TriggerTime { get; }
+            public DreamyCombatEventTuning Event { get; }
+            public Vector2 Direction { get; }
         }
     }
 }

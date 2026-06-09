@@ -1,0 +1,109 @@
+﻿%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 58f8e758f1cc46f6ba4de2d6c6bf67aa, type: 3}
+  m_Name: DreamyCombatTuningProfile
+  m_EditorClassIdentifier:
+  baseDamage: 18
+  normalAttackMinimumDuration: 0.38
+  specialAttackMinimumDuration: 0.85
+  normalStaminaCost: 8
+  specialStaminaCost: 30
+  comboResetDelay: 0.4
+  comboInputBufferWindow: 0.2
+  specialCooldown: 4.5
+  normalAttacks:
+  - id: A1
+    displayName: Attack 1
+    sourceFrameTotal: 23
+    sourceFrameStart: 0
+    frameCount: 9
+    animatorStateIndex: 0
+    attackPartIndex: 0
+    frameSpeedMultiplier: 1
+    damageMultiplier: 1
+    hitboxLength: 1.15
+    hitboxWidth: 0.92
+    originDistance: 0.28
+    hitMarkerNormalizedTime: 0.45
+    knockbackForce: 5.2
+    slowMultiplier: 1
+    slowDuration: 0
+    stunDuration: 0
+    events: []
+  - id: A2
+    displayName: Attack 2
+    sourceFrameTotal: 23
+    sourceFrameStart: 9
+    frameCount: 6
+    animatorStateIndex: 1
+    attackPartIndex: 1
+    frameSpeedMultiplier: 1
+    damageMultiplier: 1.15
+    hitboxLength: 1.24
+    hitboxWidth: 0.99
+    originDistance: 0.28
+    hitMarkerNormalizedTime: 0.22
+    knockbackForce: 5.2
+    slowMultiplier: 1
+    slowDuration: 0
+    stunDuration: 0
+    events: []
+  - id: A3
+    displayName: Attack 3
+    sourceFrameTotal: 23
+    sourceFrameStart: 15
+    frameCount: 8
+    animatorStateIndex: 2
+    attackPartIndex: 2
+    frameSpeedMultiplier: 0.5
+    damageMultiplier: 2.25
+    hitboxLength: 1.43
+    hitboxWidth: 1.12
+    originDistance: 0.3
+    hitMarkerNormalizedTime: 0.18
+    knockbackForce: 5.2
+    slowMultiplier: 0.5
+    slowDuration: 1.65
+    stunDuration: 0
+    events: []
+  comboSequence:
+  - label: 1
+    actionIndex: 0
+  - label: 1-1
+    actionIndex: 0
+  - label: 1-2
+    actionIndex: 1
+  - label: 1-1-1
+    actionIndex: 0
+  - label: 1-2-2
+    actionIndex: 1
+  - label: 1-2-3
+    actionIndex: 2
+  specialAttack:
+    id: SKL
+    displayName: Super Smash
+    sourceFrameTotal: 15
+    sourceFrameStart: 0
+    frameCount: 15
+    animatorStateIndex: 3
+    attackPartIndex: 3
+    frameSpeedMultiplier: 1
+    damageMultiplier: 2.4
+    hitboxLength: 1.75
+    hitboxWidth: 1.35
+    originDistance: 0.34
+    hitMarkerNormalizedTime: 0.52
+    knockbackForce: 8.5
+    slowMultiplier: 1
+    slowDuration: 0
+    stunDuration: 0
+    events: []
