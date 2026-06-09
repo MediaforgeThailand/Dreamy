@@ -12,16 +12,21 @@ Unity project root:
 
 Current always-on prototype runtime:
 - `Assets/Dreamy/Scripts/DreamyScenePrototypeRuntime.cs`
-- Installs player stats, inventory, HUD, pickups, combat feedback, and prototype monsters in any playable scene.
+- Installs player stats, inventory, HUD, pickups, combat feedback, and a training dummy in any playable scene.
 - Loads `Resources/DreamyPrototypeVisualCatalog.asset` for common item sprites.
 - Loads `Resources/DreamyMonsterCatalog.asset` for Enemy Pack monsters.
 - Uses Tiny Swords UI sprites from the visual catalog for HP, stamina, EXP, action buttons, inventory button, and inventory slots.
+- Player attacks use a Unity-style one-shot animation flow: attack plays through before the next command starts, movement is briefly slowed, and damage resolves from a forward slash hitbox instead of a full circle around the player.
+- Little Axion is the default player visual when the runtime visual catalog has the Luneblade Premium references. It uses the generated `LittleAxionPrototype.controller` for Idle, Run, Dash, Hurt, Attack 1, Attack 2, Attack 3, and Super Smash, with manual frame animation kept as fallback if the controller reference is missing. Normal attacks use `Attack 3.png` as the source combo sheet and slice it into A1, A2, and A3 sections as 9 + 6 + 8 frames. The runtime sequence is A1 -> A1 -> A2 -> A1 -> A2 -> A3, so the player needs 6 attack presses to complete the current full combo pattern: Attack 1, then Attack 1+2, then Attack 1+2+3. Attack input buffers only during the final 0.2 seconds of the current normal attack, and the next attack must be pressed within 0.4 seconds after the animation ends to continue the sequence. A3 is intentionally heavier, deals higher damage, plays at 50% attack speed, and applies a 50% slow status to the target. Damage is applied at the animation hit marker/fallback marker to every combat target whose collider overlaps the forward slash hitbox; A2 and A3 use earlier hit markers than A1 so damage lands when the visible slash appears even with A3's slower animation. No extra procedural slash effect is spawned because the Axion attack animation already includes the weapon slash visual. Super Smash is bound to the runtime HUD `SKL` button and keyboard `K`.
+- Combat debug mode removes runtime-spawned monsters and creates one `Training Dummy` near the player. The dummy has infinite health, receives player slash hits through `IDreamyCombatTarget`, flashes on hit, and reports each hit to the right-side HUD combat log with timestamp, damage, total damage, hit count, and slow/stun status details. The log panel includes a `RESET` button that clears dummy hit/damage counters and the visible history without respawning the dummy.
+- `DreamyCharacterStats` now includes prototype combat stats: Damage, Str, Agi, Attack Speed, Crit Rate, Crit Damage, Status Resist, plus runtime Slow and Stun status helpers. Str increases outgoing damage, Agi increases attack speed, Attack Speed multiplies animation/combat timing, Crit can multiply damage, Slow reduces movement/action speed, and Stun stops movement/attacks while active.
 
 Monster runtime:
 - `Assets/Dreamy/Scripts/DreamyMonsterController.cs`
 - Uses `DreamyMonsterDefinition` when available.
 - Fallback is the previous red warrior visual catalog if the monster catalog has not been generated yet.
-- Runtime prototype spawns up to 4 combat-ready monster definitions for testing.
+- The always-on runtime currently removes spawned monsters for combat debugging and uses `DreamyTrainingDummy` instead. Monster catalog spawning code remains available for re-enabling enemy tests later.
+- Monster attacks now use a normalized hit marker, forward attack cone, and selected-object Scene gizmo so enemy hit timing/range can be tuned like the player prototype.
 
 ## Prototype Life Systems
 
@@ -51,6 +56,7 @@ Runtime quest/progression prototype:
 - Quest rewards can grant EXP, coins, premium currency, skill points, unlock tokens, unlock ids, and item stacks.
 - `DreamyPlayerProgression` grants skill points from `DreamyExperience.LeveledUp`.
 - The runtime HUD shows active quest progress plus Coins, Skill Points, Unlock Tokens, and Unlock count.
+- Runtime combat debugging hides the previous defeat-monster quest while the training dummy replaces spawned monsters.
 - GM Tools can add EXP, Coins, Skill Points, and Unlock Tokens for quick testing.
 
 Item ids added for this prototype:
@@ -66,6 +72,38 @@ Asset usage:
 - The prototype reuses Tiny Swords UI slot/panel/button sprites from `DreamyPrototypeVisualCatalog`.
 - Farm/crop visuals use existing Wood/Food/UI sprites where available and procedural fallback sprites otherwise.
 - The Vault Keeper currently uses the visual catalog enemy idle sheet as placeholder NPC art.
+
+## Luneblade Little Axion Premium
+
+Imported destination:
+- `Assets/Luneblade - Little Axion (Premium)`
+
+Sprite sheet rules:
+- Readme import guidance says to slice sheets at 144x144 pixels, point filter, max size 4096, and no compression.
+- Runtime code slices the horizontal sheets procedurally from the Texture2D references in `DreamyPrototypeVisualCatalog`.
+- `DreamyAxionAnimatorBuilder` also slices the same sheets as Multiple sprites for generated AnimationClips and an Animator Controller. The visual catalog builder intentionally does not force Axion sheets back to Single mode.
+
+Runtime frame counts:
+- Idle: 7 frames
+- Run: 8 frames
+- Dash: 12 frames
+- Hurt: 3 frames
+- Attack source: `Attack 3.png`, 23 source frames
+- A1 / Attack 1 clip: frames 0-8
+- A2 / Attack 2 clip: frames 9-14
+- A3 / Attack 3 clip: frames 15-22
+- Normal combo sequence: A1, A1, A2, A1, A2, A3
+- Super Smash: 15 frames
+
+Catalog refresh:
+- `Assets/Dreamy/Editor/DreamyPrototypeVisualCatalogBuilder.cs`
+- `Assets/Dreamy/Editor/DreamyAxionAnimatorBuilder.cs`
+- Menu: `Dreamy > Prototype > Refresh Runtime Visual Catalog`
+- Menu: `Dreamy > Prototype > Refresh Little Axion Animator`
+- The builder configures the Luneblade sheets as crisp pixel-art textures and assigns them to `Assets/Resources/DreamyPrototypeVisualCatalog.asset`.
+- `DreamyPrototypeVisualCatalog.HasAxionCharacter` intentionally requires Idle, Run, Dash, Hurt, Attack 1, Attack 2, Attack 3, and Super Smash references so the runtime does not mix the old Axion setup with the premium combat set.
+- Generated Animator assets target `Assets/Dreamy/Generated/AxionAnimator`.
+- Generated attack clips include `DreamyAnimationHitMarker` Animation Events. `DreamyPlayerCombat` exposes the matching method and also keeps the same normalized marker timings as a fallback if runtime events do not fire.
 
 Monster data:
 - `Assets/Dreamy/Scripts/DreamyMonsterDefinition.cs`

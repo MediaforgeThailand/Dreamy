@@ -17,9 +17,13 @@ namespace Dreamy
         [SerializeField] private Texture2D sampleCharacterWalkSheet;
         [SerializeField] private Texture2D axionCharacterIdleSheet;
         [SerializeField] private Texture2D axionCharacterRunSheet;
+        [SerializeField] private Texture2D axionCharacterDashSheet;
+        [SerializeField] private Texture2D axionCharacterHurtSheet;
         [SerializeField] private Texture2D axionCharacterAttackSheet;
         [SerializeField] private Texture2D axionCharacterAttack2Sheet;
         [SerializeField] private Texture2D axionCharacterAttack3Sheet;
+        [SerializeField] private Texture2D axionCharacterSuperSmashSheet;
+        [SerializeField] private RuntimeAnimatorController axionAnimatorController;
         [SerializeField] private Sprite enemySprite;
         [SerializeField] private Texture2D enemyIdleSheet;
         [SerializeField] private Texture2D enemyRunSheet;
@@ -49,9 +53,20 @@ namespace Dreamy
         public bool HasSampleCharacter => sampleCharacterIdleSheet != null && sampleCharacterWalkSheet != null;
         public Texture2D AxionCharacterIdleSheet => axionCharacterIdleSheet;
         public Texture2D AxionCharacterRunSheet => axionCharacterRunSheet;
+        public Texture2D AxionCharacterDashSheet => axionCharacterDashSheet;
+        public Texture2D AxionCharacterHurtSheet => axionCharacterHurtSheet;
         public Texture2D AxionCharacterAttackSheet => axionCharacterAttackSheet;
         public Texture2D[] AxionCharacterAttackSheets => BuildSheetList(axionCharacterAttackSheet, axionCharacterAttack2Sheet, axionCharacterAttack3Sheet);
-        public bool HasAxionCharacter => axionCharacterIdleSheet != null && axionCharacterRunSheet != null;
+        public Texture2D AxionCharacterSuperSmashSheet => axionCharacterSuperSmashSheet;
+        public RuntimeAnimatorController AxionAnimatorController => axionAnimatorController;
+        public bool HasAxionCharacter => axionCharacterIdleSheet != null
+            && axionCharacterRunSheet != null
+            && axionCharacterDashSheet != null
+            && axionCharacterHurtSheet != null
+            && axionCharacterAttackSheet != null
+            && axionCharacterAttack2Sheet != null
+            && axionCharacterAttack3Sheet != null
+            && axionCharacterSuperSmashSheet != null;
         public Sprite EnemySprite => enemySprite;
         public Texture2D EnemyIdleSheet => enemyIdleSheet;
         public Texture2D EnemyRunSheet => enemyRunSheet;

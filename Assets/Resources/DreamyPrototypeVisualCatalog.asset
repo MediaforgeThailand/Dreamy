@@ -22,11 +22,15 @@ MonoBehaviour:
   playerAttack3Sheet: {fileID: 0}
   sampleCharacterIdleSheet: {fileID: 2800000, guid: 2af5893d3ed74499b2fac8f0b4e1e503, type: 3}
   sampleCharacterWalkSheet: {fileID: 2800000, guid: c1e2d8c4e318459c873b44eb1d3952a0, type: 3}
-  axionCharacterIdleSheet: {fileID: 2800000, guid: 7f2594af64f34d69b05a1e64b428e29b, type: 3}
-  axionCharacterRunSheet: {fileID: 2800000, guid: 506f4bf54efe4f2bbf474db5ad968b56, type: 3}
-  axionCharacterAttackSheet: {fileID: 2800000, guid: 48cdfacb9a66475a80d6a5a389cb12ff, type: 3}
-  axionCharacterAttack2Sheet: {fileID: 2800000, guid: c96eb1bd442fe2e42ace6ab9661f5707, type: 3}
-  axionCharacterAttack3Sheet: {fileID: 0}
+  axionCharacterIdleSheet: {fileID: 2800000, guid: 28c60006526230b429c216dcc1e5881d, type: 3}
+  axionCharacterRunSheet: {fileID: 2800000, guid: 6f7d89e6315ad8d4bb1c4a065127e0ee, type: 3}
+  axionCharacterDashSheet: {fileID: 2800000, guid: 2af07d12a7beccf4799cf4ddb56421d2, type: 3}
+  axionCharacterHurtSheet: {fileID: 2800000, guid: 9074021ee2f8e1946a066ab4de690163, type: 3}
+  axionCharacterAttackSheet: {fileID: 2800000, guid: 61c6a39f64185d1479f5e140555339a9, type: 3}
+  axionCharacterAttack2Sheet: {fileID: 2800000, guid: 5bcd4b708737f11438aa0ddfd12efb38, type: 3}
+  axionCharacterAttack3Sheet: {fileID: 2800000, guid: f513aec793d14764393805b42460aeb5, type: 3}
+  axionCharacterSuperSmashSheet: {fileID: 2800000, guid: f79df7de939bd6447b7f1eda95bf1533, type: 3}
+  axionAnimatorController: {fileID: 9100000, guid: 865c712a460d3d843a680f00ec8a2e49, type: 2}
   enemySprite: {fileID: 21300000, guid: d6c1618bd3764674db93aad0fe9f871a, type: 3}
   enemyIdleSheet: {fileID: 2800000, guid: d6c1618bd3764674db93aad0fe9f871a, type: 3}
   enemyRunSheet: {fileID: 2800000, guid: 8cc0bd4532036a3488db008e4dea0592, type: 3}

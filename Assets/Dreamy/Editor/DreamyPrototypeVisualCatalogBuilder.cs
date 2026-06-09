@@ -20,10 +20,13 @@ namespace Dreamy.Editor
         private const float SampleCharacterPixelsPerUnit = 48f;
         private const float AxionCharacterPixelsPerUnit = 48f;
         private const float UiPixelsPerUnit = 100f;
+        private const string AxionPremiumSpriteFolder = "Assets/Luneblade - Little Axion (Premium)/Sprite Sheet";
+        private const string AxionAnimatorControllerPath = "Assets/Dreamy/Generated/AxionAnimator/LittleAxionPrototype.controller";
 
         static DreamyPrototypeVisualCatalogBuilder()
         {
             EditorApplication.delayCall += EnsureCatalog;
+            EditorApplication.playModeStateChanged += HandlePlayModeStateChanged;
         }
 
         [MenuItem("Dreamy/Prototype/Refresh Runtime Visual Catalog")]
@@ -43,15 +46,17 @@ namespace Dreamy.Editor
             ConfigurePixelArtSheet("Assets/Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Attack3.png");
             ConfigureSampleCharacterSheet("Assets/Dreamy/Characters/SampleIdleWalk/idle/sprite sheets/idle.png");
             ConfigureSampleCharacterSheet("Assets/Dreamy/Characters/SampleIdleWalk/walk/sprite sheets/walk.png");
-            ConfigureAxionCharacterSheet("Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Idle.png");
-            ConfigureAxionCharacterSheet("Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Run.png");
-            ConfigureAxionCharacterSheet("Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Attack 1.png");
-            ConfigureAxionCharacterSheet("Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Attack 2.png");
-            ConfigureAxionCharacterSheet("Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Dash.png");
-            ConfigureAxionCharacterSheet("Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Death.png");
-            ConfigureAxionCharacterSheet("Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Fall.png");
-            ConfigureAxionCharacterSheet("Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Hurt.png");
-            ConfigureAxionCharacterSheet("Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Jump.png");
+            ConfigureAxionCharacterSheet(AxionSheetPath("Idle.png"));
+            ConfigureAxionCharacterSheet(AxionSheetPath("Run.png"));
+            ConfigureAxionCharacterSheet(AxionSheetPath("Dash.png"));
+            ConfigureAxionCharacterSheet(AxionSheetPath("Hurt.png"));
+            ConfigureAxionCharacterSheet(AxionSheetPath("Attack 1.png"));
+            ConfigureAxionCharacterSheet(AxionSheetPath("Attack 2.png"));
+            ConfigureAxionCharacterSheet(AxionSheetPath("Attack 3.png"));
+            ConfigureAxionCharacterSheet(AxionSheetPath("Super Smash.png"));
+            ConfigureAxionCharacterSheet(AxionSheetPath("Death.png"));
+            ConfigureAxionCharacterSheet(AxionSheetPath("Fall.png"));
+            ConfigureAxionCharacterSheet(AxionSheetPath("Jump.png"));
             ConfigurePixelArtSheet("Assets/Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Idle.png");
             ConfigurePixelArtSheet("Assets/Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Run.png");
             ConfigurePixelArtSheet("Assets/Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Attack1.png");
@@ -91,11 +96,15 @@ namespace Dreamy.Editor
             SetTexture(serialized, "playerAttack3Sheet", "Assets/Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Attack3.png");
             SetTexture(serialized, "sampleCharacterIdleSheet", "Assets/Dreamy/Characters/SampleIdleWalk/idle/sprite sheets/idle.png");
             SetTexture(serialized, "sampleCharacterWalkSheet", "Assets/Dreamy/Characters/SampleIdleWalk/walk/sprite sheets/walk.png");
-            SetTexture(serialized, "axionCharacterIdleSheet", "Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Idle.png");
-            SetTexture(serialized, "axionCharacterRunSheet", "Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Run.png");
-            SetTexture(serialized, "axionCharacterAttackSheet", "Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Attack 1.png");
-            SetTexture(serialized, "axionCharacterAttack2Sheet", "Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Attack 2.png");
-            SetTexture(serialized, "axionCharacterAttack3Sheet", "Assets/Dreamy/Characters/LittleAxion/Sprite Sheet/Attack 3.png");
+            SetTexture(serialized, "axionCharacterIdleSheet", AxionSheetPath("Idle.png"));
+            SetTexture(serialized, "axionCharacterRunSheet", AxionSheetPath("Run.png"));
+            SetTexture(serialized, "axionCharacterDashSheet", AxionSheetPath("Dash.png"));
+            SetTexture(serialized, "axionCharacterHurtSheet", AxionSheetPath("Hurt.png"));
+            SetTexture(serialized, "axionCharacterAttackSheet", AxionSheetPath("Attack 1.png"));
+            SetTexture(serialized, "axionCharacterAttack2Sheet", AxionSheetPath("Attack 2.png"));
+            SetTexture(serialized, "axionCharacterAttack3Sheet", AxionSheetPath("Attack 3.png"));
+            SetTexture(serialized, "axionCharacterSuperSmashSheet", AxionSheetPath("Super Smash.png"));
+            SetObject<RuntimeAnimatorController>(serialized, "axionAnimatorController", AxionAnimatorControllerPath);
             SetSprite(serialized, "enemySprite", "Assets/Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Idle.png");
             SetTexture(serialized, "enemyIdleSheet", "Assets/Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Idle.png");
             SetTexture(serialized, "enemyRunSheet", "Assets/Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Run.png");
@@ -115,6 +124,14 @@ namespace Dreamy.Editor
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(catalog);
             AssetDatabase.SaveAssets();
+        }
+
+        private static void HandlePlayModeStateChanged(PlayModeStateChange state)
+        {
+            if (state == PlayModeStateChange.EnteredEditMode || state == PlayModeStateChange.ExitingPlayMode)
+            {
+                EditorApplication.delayCall += EnsureCatalog;
+            }
         }
 
         private static void ConfigureBackgroundSprite(string path)
@@ -155,10 +172,20 @@ namespace Dreamy.Editor
 
         private static void ConfigureAxionCharacterSheet(string path)
         {
-            ConfigureSprite(path, AxionCharacterPixelsPerUnit, false);
+            ConfigureSprite(path, AxionCharacterPixelsPerUnit, false, false);
+        }
+
+        private static string AxionSheetPath(string fileName)
+        {
+            return AxionPremiumSpriteFolder + "/" + fileName;
         }
 
         private static void ConfigureSprite(string path, float pixelsPerUnit, bool readable)
+        {
+            ConfigureSprite(path, pixelsPerUnit, readable, true);
+        }
+
+        private static void ConfigureSprite(string path, float pixelsPerUnit, bool readable, bool forceSingleSpriteMode)
         {
             if (AssetImporter.GetAtPath(path) is not TextureImporter importer)
             {
@@ -167,7 +194,11 @@ namespace Dreamy.Editor
 
             bool changed = false;
             changed |= SetImporterValue(importer.textureType != TextureImporterType.Sprite, () => importer.textureType = TextureImporterType.Sprite);
-            changed |= SetImporterValue(importer.spriteImportMode != SpriteImportMode.Single, () => importer.spriteImportMode = SpriteImportMode.Single);
+            if (forceSingleSpriteMode)
+            {
+                changed |= SetImporterValue(importer.spriteImportMode != SpriteImportMode.Single, () => importer.spriteImportMode = SpriteImportMode.Single);
+            }
+
             changed |= SetImporterValue(!Mathf.Approximately(importer.spritePixelsPerUnit, pixelsPerUnit), () => importer.spritePixelsPerUnit = pixelsPerUnit);
             changed |= SetImporterValue(importer.filterMode != FilterMode.Point, () => importer.filterMode = FilterMode.Point);
             changed |= SetImporterValue(importer.mipmapEnabled, () => importer.mipmapEnabled = false);
@@ -256,6 +287,15 @@ namespace Dreamy.Editor
             if (texture != null)
             {
                 serialized.FindProperty(propertyName).objectReferenceValue = texture;
+            }
+        }
+
+        private static void SetObject<T>(SerializedObject serialized, string propertyName, string assetPath) where T : UnityEngine.Object
+        {
+            T asset = AssetDatabase.LoadAssetAtPath<T>(assetPath);
+            if (asset != null)
+            {
+                serialized.FindProperty(propertyName).objectReferenceValue = asset;
             }
         }
 

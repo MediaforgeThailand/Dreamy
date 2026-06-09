@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Dreamy
@@ -10,22 +11,54 @@ namespace Dreamy
         [SerializeField] private float attackRange = 1.15f;
         [SerializeField] private float attackCooldown = 0.48f;
         [SerializeField] private float attackWindup = 0.16f;
+        [SerializeField] private float attackHitMarkerNormalizedTime = 0.45f;
+        [SerializeField] private float attack2HitMarkerNormalizedTime = 0.22f;
+        [SerializeField] private float attack3HitMarkerNormalizedTime = 0.18f;
         [SerializeField] private float attackAnimationDuration = 0.38f;
+        [SerializeField] private float attack2DamageMultiplier = 1.15f;
+        [SerializeField] private float attack3DamageMultiplier = 2.25f;
+        [SerializeField] private float attack3SlowMultiplier = 0.5f;
+        [SerializeField] private float attack3SlowDuration = 1.65f;
+        [SerializeField] private float attack3StunDuration;
         [SerializeField] private float staminaCost = 8f;
         [SerializeField] private float knockbackForce = 5.2f;
-        [SerializeField] private float slashEffectDistance = 0.58f;
-        [SerializeField] private float comboResetDelay = 0.72f;
+        [SerializeField] private float comboResetDelay = 0.4f;
+        [SerializeField] private float comboInputBufferWindow = 0.2f;
+        [SerializeField] private float attackOriginDistance = 0.28f;
+        [SerializeField] private float attackHitboxWidth = 0.92f;
+        [SerializeField] private float attack2HitboxLengthMultiplier = 1.08f;
+        [SerializeField] private float attack2HitboxWidthMultiplier = 1.08f;
+        [SerializeField] private float attack3HitboxLengthMultiplier = 1.24f;
+        [SerializeField] private float attack3HitboxWidthMultiplier = 1.22f;
+        [SerializeField] private float specialDamageMultiplier = 2.4f;
+        [SerializeField] private float specialAttackRange = 1.75f;
+        [SerializeField] private float specialAttackHitboxWidth = 1.35f;
+        [SerializeField] private float specialAttackCooldown = 4.5f;
+        [SerializeField] private float specialAttackWindup = 0.34f;
+        [SerializeField] private float specialHitMarkerNormalizedTime = 0.52f;
+        [SerializeField] private float specialAttackAnimationDuration = 0.85f;
+        [SerializeField] private float specialStaminaCost = 30f;
+        [SerializeField] private float specialKnockbackForce = 8.5f;
 
-        public event Action<DreamyMonsterController> AttackHit;
+        public event Action<IDreamyCombatTarget> AttackHit;
         public event Action AttackMissed;
 
         private DreamyCharacterStats stats;
         private DreamyMobilePlayer player;
         private float nextAttackTime;
+        private float nextSpecialAttackTime;
         private float pendingAttackHitsAt;
         private float currentAttackEndsAt;
         private float lastAttackEndedAt = -999f;
         private Vector2 pendingAttackDirection = Vector2.down;
+        private float pendingAttackDamage;
+        private float pendingAttackRange;
+        private float pendingAttackHitboxWidth;
+        private float pendingAttackKnockbackForce;
+        private float pendingAttackSlowMultiplier = 1f;
+        private float pendingAttackSlowDuration;
+        private float pendingAttackStunDuration;
+        private bool pendingAttackIsSpecial;
         private bool bufferedAttack;
         private bool pendingAttackHit;
 
@@ -40,6 +73,11 @@ namespace Dreamy
             if (Input.GetKeyDown(KeyCode.J))
             {
                 QueueAttack();
+            }
+
+            if (Input.GetKeyDown(KeyCode.K))
+            {
+                QueueSpecialSkill();
             }
 
             if (pendingAttackHit && Time.time >= pendingAttackHitsAt)
@@ -79,34 +117,103 @@ namespace Dreamy
                 player.ResetAttackCombo();
             }
 
+            float attackSpeedMultiplier = ResolveAttackSpeedMultiplier();
+            Vector2 attackDirection = ResolveAttackDirection();
             float animationDuration = Mathf.Max(0.05f, attackAnimationDuration);
-            nextAttackTime = Time.time + Mathf.Max(attackCooldown, animationDuration);
-            currentAttackEndsAt = Time.time + animationDuration;
-            pendingAttackHitsAt = Time.time + attackWindup;
-            pendingAttackDirection = ResolveAttackDirection();
-            pendingAttackHit = true;
             if (player != null)
             {
-                player.PlayAttack(animationDuration, pendingAttackDirection);
+                animationDuration = player.PlayAttack(animationDuration, attackDirection, attackSpeedMultiplier);
             }
 
+            int attackPartIndex = player != null ? player.LastAttackPartIndex : 0;
+            currentAttackEndsAt = Time.time + animationDuration;
+            nextAttackTime = currentAttackEndsAt;
+            pendingAttackHitsAt = Time.time + ResolveHitDelay(animationDuration, attackWindup, GetAttackPartHitMarkerNormalizedTime(attackPartIndex));
+            pendingAttackDirection = attackDirection;
+            pendingAttackDamage = ResolvePlayerDamage(GetAttackPartDamageMultiplier(attackPartIndex));
+            pendingAttackRange = attackRange * GetAttackPartLengthMultiplier(attackPartIndex);
+            pendingAttackHitboxWidth = attackHitboxWidth * GetAttackPartWidthMultiplier(attackPartIndex);
+            pendingAttackKnockbackForce = knockbackForce;
+            pendingAttackSlowMultiplier = attackPartIndex == 2 ? attack3SlowMultiplier : 1f;
+            pendingAttackSlowDuration = attackPartIndex == 2 ? attack3SlowDuration : 0f;
+            pendingAttackStunDuration = attackPartIndex == 2 ? attack3StunDuration : 0f;
+            pendingAttackIsSpecial = false;
+            pendingAttackHit = true;
+
             return true;
+        }
+
+        public void QueueSpecialSkill()
+        {
+            TrySpecialSkill();
+        }
+
+        public bool TrySpecialSkill()
+        {
+            if (!CanStartSpecialSkillNow() || stats == null || !stats.TrySpendStamina(specialStaminaCost))
+            {
+                return false;
+            }
+
+            if (player != null)
+            {
+                player.ResetAttackCombo();
+            }
+
+            float attackSpeedMultiplier = ResolveAttackSpeedMultiplier();
+            Vector2 attackDirection = ResolveAttackDirection();
+            float animationDuration = Mathf.Max(0.05f, specialAttackAnimationDuration);
+            if (player != null)
+            {
+                animationDuration = player.PlaySpecialAttack(animationDuration, attackDirection, attackSpeedMultiplier);
+            }
+
+            nextAttackTime = Time.time + animationDuration;
+            nextSpecialAttackTime = Time.time + Mathf.Max(specialAttackCooldown, animationDuration);
+            currentAttackEndsAt = Time.time + animationDuration;
+            pendingAttackHitsAt = Time.time + ResolveHitDelay(animationDuration, specialAttackWindup, specialHitMarkerNormalizedTime);
+            pendingAttackDirection = attackDirection;
+            pendingAttackDamage = ResolvePlayerDamage(specialDamageMultiplier);
+            pendingAttackRange = specialAttackRange;
+            pendingAttackHitboxWidth = specialAttackHitboxWidth;
+            pendingAttackKnockbackForce = specialKnockbackForce;
+            pendingAttackSlowMultiplier = 1f;
+            pendingAttackSlowDuration = 0f;
+            pendingAttackStunDuration = 0f;
+            pendingAttackIsSpecial = true;
+            pendingAttackHit = true;
+            bufferedAttack = false;
+            return true;
+        }
+
+        public void DreamyAnimationHitMarker()
+        {
+            if (pendingAttackHit)
+            {
+                ResolvePendingAttack();
+            }
         }
 
         private void ResolvePendingAttack()
         {
             pendingAttackHit = false;
             lastAttackEndedAt = Mathf.Max(lastAttackEndedAt, currentAttackEndsAt);
-            SpawnSlashEffect(pendingAttackDirection);
-            DreamyMonsterController nearest = FindNearestMonster();
-            if (nearest == null)
+
+            List<IDreamyCombatTarget> targets = FindTargetsInSlashHitbox(
+                pendingAttackDirection,
+                pendingAttackRange,
+                pendingAttackHitboxWidth);
+            if (targets.Count == 0)
             {
                 AttackMissed?.Invoke();
                 return;
             }
 
-            nearest.ApplyHit(attackDamage, transform.position, knockbackForce);
-            AttackHit?.Invoke(nearest);
+            for (int i = 0; i < targets.Count; i++)
+            {
+                ApplyCombatHit(targets[i]);
+                AttackHit?.Invoke(targets[i]);
+            }
         }
 
         private bool CanStartAttackNow()
@@ -115,47 +222,202 @@ namespace Dreamy
                 && Time.time >= currentAttackEndsAt
                 && Time.time >= nextAttackTime
                 && stats != null
-                && stats.IsAlive;
+                && stats.IsAlive
+                && !stats.IsStunned;
         }
 
         private bool CanBufferAttack()
         {
+            return IsInsideComboInputWindow();
+        }
+
+        private bool IsInsideComboInputWindow()
+        {
             return stats != null
                 && stats.IsAlive
-                && (pendingAttackHit || Time.time < currentAttackEndsAt || Time.time < nextAttackTime);
+                && !stats.IsStunned
+                && !pendingAttackIsSpecial
+                && Time.time < currentAttackEndsAt
+                && Time.time >= currentAttackEndsAt - comboInputBufferWindow;
         }
 
         private bool CanStartBufferedAttack()
         {
             return stats != null
                 && stats.IsAlive
+                && !stats.IsStunned
                 && !pendingAttackHit
                 && Time.time >= currentAttackEndsAt
                 && Time.time >= nextAttackTime;
         }
 
-        private DreamyMonsterController FindNearestMonster()
+        private bool CanStartSpecialSkillNow()
         {
-            DreamyMonsterController[] monsters = FindObjectsByType<DreamyMonsterController>(FindObjectsInactive.Exclude);
-            DreamyMonsterController nearest = null;
-            float nearestDistance = attackRange * attackRange;
-            Vector2 origin = transform.position;
-            for (int i = 0; i < monsters.Length; i++)
+            return !pendingAttackHit
+                && Time.time >= currentAttackEndsAt
+                && Time.time >= nextAttackTime
+                && Time.time >= nextSpecialAttackTime
+                && stats != null
+                && stats.IsAlive
+                && !stats.IsStunned;
+        }
+
+        private void ApplyCombatHit(IDreamyCombatTarget target)
+        {
+            if (target == null)
             {
-                if (monsters[i] == null || !monsters[i].IsAlive)
+                return;
+            }
+
+            target.ReceiveCombatHit(
+                pendingAttackDamage,
+                transform.position,
+                pendingAttackKnockbackForce,
+                pendingAttackSlowMultiplier,
+                pendingAttackSlowDuration,
+                pendingAttackStunDuration);
+        }
+
+        private float ResolveAttackSpeedMultiplier()
+        {
+            return stats != null ? stats.AttackSpeedMultiplier : 1f;
+        }
+
+        private float ResolvePlayerDamage(float actionMultiplier)
+        {
+            float baseDamage = stats != null ? Mathf.Max(attackDamage, stats.Damage) : attackDamage;
+            float resolvedDamage = baseDamage * Mathf.Max(0f, actionMultiplier);
+            if (stats != null)
+            {
+                resolvedDamage *= stats.DamageMultiplier;
+                if (resolvedDamage > 0f && UnityEngine.Random.value < stats.CriticalChance)
+                {
+                    resolvedDamage *= stats.CriticalDamageMultiplier;
+                }
+            }
+
+            return resolvedDamage;
+        }
+
+        private float GetAttackPartDamageMultiplier(int attackPartIndex)
+        {
+            switch (attackPartIndex)
+            {
+                case 1:
+                    return attack2DamageMultiplier;
+                case 2:
+                    return attack3DamageMultiplier;
+                default:
+                    return 1f;
+            }
+        }
+
+        private float GetAttackPartLengthMultiplier(int attackPartIndex)
+        {
+            switch (attackPartIndex)
+            {
+                case 1:
+                    return attack2HitboxLengthMultiplier;
+                case 2:
+                    return attack3HitboxLengthMultiplier;
+                default:
+                    return 1f;
+            }
+        }
+
+        private float GetAttackPartWidthMultiplier(int attackPartIndex)
+        {
+            switch (attackPartIndex)
+            {
+                case 1:
+                    return attack2HitboxWidthMultiplier;
+                case 2:
+                    return attack3HitboxWidthMultiplier;
+                default:
+                    return 1f;
+            }
+        }
+
+        private float GetAttackPartHitMarkerNormalizedTime(int attackPartIndex)
+        {
+            switch (attackPartIndex)
+            {
+                case 1:
+                    return attack2HitMarkerNormalizedTime;
+                case 2:
+                    return attack3HitMarkerNormalizedTime;
+                default:
+                    return attackHitMarkerNormalizedTime;
+            }
+        }
+
+        private static float ResolveHitDelay(float animationDuration, float fallbackWindup, float normalizedMarkerTime)
+        {
+            if (normalizedMarkerTime > 0f)
+            {
+                return Mathf.Clamp01(normalizedMarkerTime) * Mathf.Max(0.01f, animationDuration);
+            }
+
+            return Mathf.Min(Mathf.Max(0f, fallbackWindup), Mathf.Max(0.01f, animationDuration) * 0.95f);
+        }
+
+        private List<IDreamyCombatTarget> FindTargetsInSlashHitbox(Vector2 attackDirection, float length, float width)
+        {
+            if (attackDirection.sqrMagnitude < 0.01f)
+            {
+                attackDirection = Vector2.down;
+            }
+
+            Vector2 normalizedDirection = attackDirection.normalized;
+            Vector2 origin = (Vector2)transform.position + normalizedDirection * attackOriginDistance;
+            Vector2 perpendicular = new Vector2(-normalizedDirection.y, normalizedDirection.x);
+            float hitboxLength = Mathf.Max(0.05f, length);
+            float halfWidth = Mathf.Max(0.05f, width) * 0.5f;
+            MonoBehaviour[] behaviours = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Exclude);
+            List<IDreamyCombatTarget> targets = new List<IDreamyCombatTarget>();
+            for (int i = 0; i < behaviours.Length; i++)
+            {
+                if (behaviours[i] == null || behaviours[i] is not IDreamyCombatTarget target || targets.Contains(target))
                 {
                     continue;
                 }
 
-                float distance = Vector2.SqrMagnitude((Vector2)monsters[i].transform.position - origin);
-                if (distance <= nearestDistance)
+                Transform targetTransform = target.TargetTransform;
+                if (targetTransform == null || targetTransform == transform || !target.IsTargetAlive)
                 {
-                    nearest = monsters[i];
-                    nearestDistance = distance;
+                    continue;
+                }
+
+                Vector2 toTarget = (Vector2)targetTransform.position - origin;
+                float targetRadius = ResolveTargetRadius(target);
+                float forwardDistance = Vector2.Dot(toTarget, normalizedDirection);
+                float sideDistance = Mathf.Abs(Vector2.Dot(toTarget, perpendicular));
+                if (forwardDistance >= -targetRadius
+                    && forwardDistance <= hitboxLength + targetRadius
+                    && sideDistance <= halfWidth + targetRadius)
+                {
+                    targets.Add(target);
                 }
             }
 
-            return nearest;
+            return targets;
+        }
+
+        private static float ResolveTargetRadius(IDreamyCombatTarget target)
+        {
+            if (target == null)
+            {
+                return 0f;
+            }
+
+            Collider2D targetCollider = target.TargetCollider;
+            if (targetCollider == null)
+            {
+                return 0.18f;
+            }
+
+            Vector3 extents = targetCollider.bounds.extents;
+            return Mathf.Max(0.05f, Mathf.Max(extents.x, extents.y));
         }
 
         private Vector2 ResolveAttackDirection()
@@ -174,27 +436,6 @@ namespace Dreamy
             return Vector2.down;
         }
 
-        private void SpawnSlashEffect(Vector2 direction)
-        {
-            if (direction.sqrMagnitude < 0.01f)
-            {
-                direction = Vector2.down;
-            }
-
-            Vector2 normalized = direction.normalized;
-            GameObject slash = new GameObject("Player Knight Slash Effect");
-            slash.transform.position = transform.position + (Vector3)(normalized * slashEffectDistance) + new Vector3(0f, 0.18f, 0f);
-            slash.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(normalized.y, normalized.x) * Mathf.Rad2Deg);
-
-            SpriteRenderer renderer = slash.AddComponent<SpriteRenderer>();
-            renderer.sprite = DreamyAttackSlashEffect.SlashSprite;
-            renderer.color = new Color(1f, 0.92f, 0.48f, 0.92f);
-            renderer.sortingOrder = 260;
-
-            DreamyAttackSlashEffect effect = slash.AddComponent<DreamyAttackSlashEffect>();
-            effect.Configure(0.15f);
-        }
-
         private void OnValidate()
         {
             attackDamage = Mathf.Max(0f, attackDamage);
@@ -202,10 +443,79 @@ namespace Dreamy
             attackCooldown = Mathf.Max(0f, attackCooldown);
             attackWindup = Mathf.Max(0f, attackWindup);
             attackAnimationDuration = Mathf.Max(0.05f, attackAnimationDuration);
+            attack2DamageMultiplier = Mathf.Max(0f, attack2DamageMultiplier);
+            attack3DamageMultiplier = Mathf.Max(0f, attack3DamageMultiplier);
+            attack3SlowMultiplier = Mathf.Clamp(attack3SlowMultiplier, 0.05f, 1f);
+            attack3SlowDuration = Mathf.Max(0f, attack3SlowDuration);
+            attack3StunDuration = Mathf.Max(0f, attack3StunDuration);
             staminaCost = Mathf.Max(0f, staminaCost);
             knockbackForce = Mathf.Max(0f, knockbackForce);
-            slashEffectDistance = Mathf.Max(0.05f, slashEffectDistance);
             comboResetDelay = Mathf.Max(0.05f, comboResetDelay);
+            comboInputBufferWindow = Mathf.Max(0f, comboInputBufferWindow);
+            attackOriginDistance = Mathf.Max(0f, attackOriginDistance);
+            attackHitboxWidth = Mathf.Max(0.05f, attackHitboxWidth);
+            attack2HitboxLengthMultiplier = Mathf.Max(0.05f, attack2HitboxLengthMultiplier);
+            attack2HitboxWidthMultiplier = Mathf.Max(0.05f, attack2HitboxWidthMultiplier);
+            attack3HitboxLengthMultiplier = Mathf.Max(0.05f, attack3HitboxLengthMultiplier);
+            attack3HitboxWidthMultiplier = Mathf.Max(0.05f, attack3HitboxWidthMultiplier);
+            specialDamageMultiplier = Mathf.Max(0f, specialDamageMultiplier);
+            specialAttackRange = Mathf.Max(0.05f, specialAttackRange);
+            specialAttackHitboxWidth = Mathf.Max(0.05f, specialAttackHitboxWidth);
+            specialAttackCooldown = Mathf.Max(0f, specialAttackCooldown);
+            specialAttackWindup = Mathf.Max(0f, specialAttackWindup);
+            attackHitMarkerNormalizedTime = Mathf.Clamp01(attackHitMarkerNormalizedTime);
+            attack2HitMarkerNormalizedTime = Mathf.Clamp01(attack2HitMarkerNormalizedTime);
+            attack3HitMarkerNormalizedTime = Mathf.Clamp01(attack3HitMarkerNormalizedTime);
+            specialHitMarkerNormalizedTime = Mathf.Clamp01(specialHitMarkerNormalizedTime);
+            specialAttackAnimationDuration = Mathf.Max(0.05f, specialAttackAnimationDuration);
+            specialStaminaCost = Mathf.Max(0f, specialStaminaCost);
+            specialKnockbackForce = Mathf.Max(0f, specialKnockbackForce);
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            Vector2 direction = ResolveGizmoDirection();
+            DrawSlashHitbox(direction, attackRange, attackHitboxWidth, new Color(1f, 0.82f, 0.18f, 0.72f));
+            DrawSlashHitbox(direction, attackRange * attack3HitboxLengthMultiplier, attackHitboxWidth * attack3HitboxWidthMultiplier, new Color(1f, 0.48f, 0.18f, 0.58f));
+            DrawSlashHitbox(direction, specialAttackRange, specialAttackHitboxWidth, new Color(0.35f, 0.92f, 1f, 0.58f));
+        }
+
+        private Vector2 ResolveGizmoDirection()
+        {
+            if (Application.isPlaying && player != null)
+            {
+                return player.FacingDirection;
+            }
+
+            SpriteRenderer renderer = GetComponent<SpriteRenderer>();
+            if (renderer != null)
+            {
+                return renderer.flipX ? Vector2.left : Vector2.right;
+            }
+
+            return Vector2.down;
+        }
+
+        private void DrawSlashHitbox(Vector2 direction, float length, float width, Color color)
+        {
+            if (direction.sqrMagnitude < 0.01f)
+            {
+                direction = Vector2.down;
+            }
+
+            Vector2 forward = direction.normalized;
+            Vector2 side = new Vector2(-forward.y, forward.x) * (Mathf.Max(0.05f, width) * 0.5f);
+            Vector3 origin = transform.position + (Vector3)(forward * attackOriginDistance);
+            Vector3 front = origin + (Vector3)(forward * Mathf.Max(0.05f, length));
+            Vector3 backLeft = origin + (Vector3)side;
+            Vector3 backRight = origin - (Vector3)side;
+            Vector3 frontLeft = front + (Vector3)side;
+            Vector3 frontRight = front - (Vector3)side;
+            Gizmos.color = color;
+            Gizmos.DrawLine(backLeft, frontLeft);
+            Gizmos.DrawLine(frontLeft, frontRight);
+            Gizmos.DrawLine(frontRight, backRight);
+            Gizmos.DrawLine(backRight, backLeft);
         }
     }
 }

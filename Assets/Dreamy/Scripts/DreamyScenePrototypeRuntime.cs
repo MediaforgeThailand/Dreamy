@@ -121,7 +121,7 @@ namespace Dreamy
             EnsureInteractionUi();
             EnsureCharacterSelectionUi();
             EnsureStarterPickups();
-            EnsurePrototypeMonster();
+            EnsureTrainingDummy();
             EnsurePrototypeLifeSystems();
         }
 
@@ -185,10 +185,13 @@ namespace Dreamy
 
             if (visualCatalog != null)
             {
-                player.ConfigureKnightVisuals(
-                    visualCatalog.PlayerIdleSheet,
-                    visualCatalog.PlayerRunSheet,
-                    visualCatalog.PlayerAttackSheets);
+                if (!TryConfigureAxionPlayer())
+                {
+                    player.ConfigureKnightVisuals(
+                        visualCatalog.PlayerIdleSheet,
+                        visualCatalog.PlayerRunSheet,
+                        visualCatalog.PlayerAttackSheets);
+                }
             }
 
             if (player.GetComponent<DreamyPlayerCombat>() == null)
@@ -343,23 +346,7 @@ namespace Dreamy
                 }
                 else if (characterChoice == CharacterChoiceAxion && visualCatalog != null && visualCatalog.HasAxionCharacter)
                 {
-                    player.ConfigureCharacterVisuals(
-                        visualCatalog.AxionCharacterIdleSheet,
-                        7,
-                        1,
-                        -1,
-                        visualCatalog.AxionCharacterRunSheet,
-                        8,
-                        1,
-                        -1,
-                        visualCatalog.AxionCharacterAttackSheets,
-                        new[] { 10, 15, 10 },
-                        new[] { 1, 1, 1 },
-                        AxionCharacterPixelsPerUnit,
-                        5f,
-                        13f,
-                        24f,
-                        false);
+                    TryConfigureAxionPlayer();
                 }
                 else if (visualCatalog != null)
                 {
@@ -375,6 +362,65 @@ namespace Dreamy
             {
                 Destroy(selectionRoot);
             }
+        }
+
+        private bool TryConfigureAxionPlayer()
+        {
+            if (player == null || visualCatalog == null || !visualCatalog.HasAxionCharacter)
+            {
+                return false;
+            }
+
+            Texture2D[] axionAttackSheets = visualCatalog.AxionCharacterAttackSheets;
+            Texture2D comboSheet = axionAttackSheets.Length >= 3 ? axionAttackSheets[2] : visualCatalog.AxionCharacterAttackSheet;
+            Texture2D[] comboAttackSheets =
+            {
+                comboSheet,
+                comboSheet,
+                comboSheet,
+                comboSheet,
+                comboSheet,
+                comboSheet
+            };
+
+            player.ConfigureCharacterVisuals(
+                visualCatalog.AxionCharacterIdleSheet,
+                7,
+                1,
+                -1,
+                visualCatalog.AxionCharacterRunSheet,
+                8,
+                1,
+                -1,
+                comboAttackSheets,
+                new[] { 23, 23, 23, 23, 23, 23 },
+                new[] { 1, 1, 1, 1, 1, 1 },
+                new[] { 0, 0, 9, 0, 9, 15 },
+                new[] { 9, 9, 6, 9, 6, 8 },
+                new[] { 0, 0, 1, 0, 1, 2 },
+                new[] { 0, 0, 1, 0, 1, 2 },
+                new[] { 1f, 1f, 1f, 1f, 1f, 0.5f },
+                AxionCharacterPixelsPerUnit,
+                5f,
+                13f,
+                24f,
+                false);
+            player.ConfigureActionVisuals(
+                visualCatalog.AxionCharacterDashSheet,
+                12,
+                1,
+                visualCatalog.AxionCharacterHurtSheet,
+                3,
+                1,
+                visualCatalog.AxionCharacterSuperSmashSheet,
+                15,
+                1,
+                AxionCharacterPixelsPerUnit,
+                24f,
+                12f,
+                18f);
+            player.ConfigureAnimator(visualCatalog.AxionAnimatorController);
+            return true;
         }
 
         private void EnsureStarterPickups()
@@ -397,6 +443,51 @@ namespace Dreamy
             SpawnPickup(DreamyItemId.Gold, "Gold", 2, 10, origin + new Vector2(-1.2f, 0.85f));
             SpawnPickup(DreamyItemId.Food, "Food", 3, 8, origin + new Vector2(0.25f, -1.15f));
             starterPickupsSpawned = true;
+        }
+
+        private void EnsureTrainingDummy()
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            RemoveRuntimeMonsters();
+            if (FindAnyObjectByType<DreamyTrainingDummy>() != null)
+            {
+                return;
+            }
+
+            GameObject dummy = new GameObject("Training Dummy");
+            dummy.transform.position = player.transform.position + new Vector3(1f, -1.15f, 0f);
+            dummy.transform.localScale = Vector3.one;
+
+            dummy.AddComponent<SpriteRenderer>();
+            dummy.AddComponent<Rigidbody2D>();
+            dummy.AddComponent<BoxCollider2D>();
+            dummy.AddComponent<DreamyTrainingDummy>().Configure("Training Dummy");
+        }
+
+        private static void RemoveRuntimeMonsters()
+        {
+            DreamyMonsterController[] monsters = FindObjectsByType<DreamyMonsterController>(FindObjectsInactive.Exclude);
+            for (int i = 0; i < monsters.Length; i++)
+            {
+                if (monsters[i] == null)
+                {
+                    continue;
+                }
+
+                GameObject monsterObject = monsters[i].gameObject;
+                if (Application.isPlaying)
+                {
+                    Destroy(monsterObject);
+                }
+                else
+                {
+                    DestroyImmediate(monsterObject);
+                }
+            }
         }
 
         private void EnsurePrototypeMonster()
@@ -596,7 +687,7 @@ namespace Dreamy
                     "skill.prototype_slot",
                     new[] { new DreamyItemStack(DreamyItemId.SkillBook, "Skill Book", 1) }));
 
-            runtimeQuestDefinitions = new[] { supplyQuest, huntQuest, levelQuest };
+            runtimeQuestDefinitions = new[] { supplyQuest, levelQuest };
             return runtimeQuestDefinitions;
         }
 
@@ -814,11 +905,13 @@ namespace Dreamy
         private const int InventorySlotCount = InventoryRows * InventoryColumns;
         private const float InventorySlotSize = 76f;
         private const float InventorySlotGap = 8f;
+        private const int TrainingLogLineCount = 8;
 
         private Image statusPanelImage;
         private Image resourcePanelImage;
         private Image inventoryWindowImage;
         private Image questPanelImage;
+        private Image trainingLogPanelImage;
         private DreamySegmentedBar healthBar;
         private DreamySegmentedBar staminaBar;
         private DreamySegmentedBar expBar;
@@ -829,11 +922,15 @@ namespace Dreamy
         private Text progressionLabel;
         private Text questLabel;
         private Text messageLabel;
+        private Text trainingLogLabel;
         private Button attackButton;
+        private Button specialSkillButton;
         private Button dodgeButton;
         private Button inventoryButton;
+        private Button trainingResetButton;
         private Button closeInventoryButton;
         private Image attackButtonIcon;
+        private Image specialSkillButtonIcon;
         private Image dodgeButtonIcon;
         private Image inventoryButtonIcon;
         private GameObject inventoryWindow;
@@ -849,6 +946,9 @@ namespace Dreamy
         private DreamyPrototypeVisualCatalog visualCatalog;
         private string message;
         private float messageUntil;
+        private readonly Queue<string> trainingLogEntries = new Queue<string>();
+        private int trainingTotalHits;
+        private float trainingTotalDamage;
 
         private DreamyCharacterStats Stats => player != null ? player.CharacterStats : null;
         private DreamyInventory Inventory => player != null ? player.Inventory : null;
@@ -860,6 +960,7 @@ namespace Dreamy
             DreamyResourcePickup.PickedUp += HandlePickup;
             DreamyResourcePickup.PickupRejected += HandlePickupRejected;
             DreamyResourceNode.ResourceCollected += HandleResourceCollected;
+            DreamyTrainingDummy.HitRecorded += HandleTrainingDummyHitRecorded;
         }
 
         private void OnDisable()
@@ -867,6 +968,7 @@ namespace Dreamy
             DreamyResourcePickup.PickedUp -= HandlePickup;
             DreamyResourcePickup.PickupRejected -= HandlePickupRejected;
             DreamyResourceNode.ResourceCollected -= HandleResourceCollected;
+            DreamyTrainingDummy.HitRecorded -= HandleTrainingDummyHitRecorded;
         }
 
         public void Build(Transform parent)
@@ -900,6 +1002,13 @@ namespace Dreamy
             questLabel = CreateText(questPanel.transform, "Quest", 20, TextAnchor.UpperLeft, new Vector2(18f, -14f), new Vector2(486f, 100f));
             AddTextOutline(questLabel);
 
+            GameObject trainingLogPanel = CreatePanel(parent, "Training Dummy Log Panel", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -130f), new Vector2(430f, 318f));
+            trainingLogPanelImage = trainingLogPanel.GetComponent<Image>();
+            trainingLogLabel = CreateText(trainingLogPanel.transform, "TRAINING DUMMY\nHP INF\nHits 0    Damage 0\n\nNo hits yet.", 18, TextAnchor.UpperLeft, new Vector2(18f, -16f), new Vector2(394f, 286f));
+            AddTextOutline(trainingLogLabel);
+            trainingResetButton = CreateButton(trainingLogPanel.transform, "RESET", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-14f, -14f), new Vector2(96f, 38f));
+            PlaceButtonLabel(trainingResetButton, "RESET", 14, Vector2.zero, new Vector2(84f, 26f));
+
             messageLabel = CreateText(parent, string.Empty, 28, TextAnchor.MiddleCenter, new Vector2(0f, -102f), new Vector2(760f, 54f));
             RectTransform messageRect = messageLabel.GetComponent<RectTransform>();
             messageRect.anchorMin = new Vector2(0.5f, 1f);
@@ -910,6 +1019,9 @@ namespace Dreamy
             attackButton = CreateButton(parent, "ATK", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f), new Vector2(-160f, 142f), new Vector2(122f, 122f));
             attackButtonIcon = CreateButtonIcon(attackButton.transform, new Vector2(54f, 54f), new Vector2(0f, 13f));
             PlaceButtonLabel(attackButton, "ATK", 18, new Vector2(0f, -39f), new Vector2(96f, 24f));
+            specialSkillButton = CreateButton(parent, "SKL", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f), new Vector2(-160f, 282f), new Vector2(106f, 106f));
+            specialSkillButtonIcon = CreateButtonIcon(specialSkillButton.transform, new Vector2(46f, 46f), new Vector2(0f, 11f));
+            PlaceButtonLabel(specialSkillButton, "SKL", 15, new Vector2(0f, -34f), new Vector2(82f, 22f));
             dodgeButton = CreateButton(parent, "ROLL", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f), new Vector2(-302f, 104f), new Vector2(96f, 96f));
             dodgeButtonIcon = CreateButtonIcon(dodgeButton.transform, new Vector2(42f, 42f), new Vector2(0f, 10f));
             PlaceButtonLabel(dodgeButton, "ROLL", 14, new Vector2(0f, -31f), new Vector2(78f, 20f));
@@ -935,10 +1047,28 @@ namespace Dreamy
                 });
             }
 
+            if (specialSkillButton != null)
+            {
+                specialSkillButton.onClick.RemoveAllListeners();
+                specialSkillButton.onClick.AddListener(() =>
+                {
+                    if (playerCombat != null)
+                    {
+                        playerCombat.QueueSpecialSkill();
+                    }
+                });
+            }
+
             if (inventoryButton != null)
             {
                 inventoryButton.onClick.RemoveAllListeners();
                 inventoryButton.onClick.AddListener(ToggleInventory);
+            }
+
+            if (trainingResetButton != null)
+            {
+                trainingResetButton.onClick.RemoveAllListeners();
+                trainingResetButton.onClick.AddListener(ResetTrainingDummyLog);
             }
 
             if (dodgeButton != null)
@@ -968,6 +1098,7 @@ namespace Dreamy
             ApplySolidSprite(resourcePanelImage, new Color(0.025f, 0.032f, 0.045f, 0.78f), Image.Type.Simple);
             ApplySolidSprite(inventoryWindowImage, new Color(0.025f, 0.032f, 0.045f, 0.96f), Image.Type.Simple);
             ApplySolidSprite(questPanelImage, new Color(0.025f, 0.032f, 0.045f, 0.7f), Image.Type.Simple);
+            ApplySolidSprite(trainingLogPanelImage, new Color(0.025f, 0.032f, 0.045f, 0.82f), Image.Type.Simple);
 
             Sprite barBaseSprite = visualCatalog != null ? visualCatalog.UiBarBaseSprite : null;
             Sprite barFillSprite = visualCatalog != null ? visualCatalog.UiBarFillSprite : null;
@@ -986,11 +1117,14 @@ namespace Dreamy
             }
 
             ApplyButtonSprites(attackButton, visualCatalog.UiRedButtonSprite, visualCatalog.UiRedButtonPressedSprite);
+            ApplyButtonSprites(specialSkillButton, visualCatalog.UiBlueButtonSprite, visualCatalog.UiBlueButtonPressedSprite);
             ApplyButtonSprites(dodgeButton, visualCatalog.UiBlueButtonSprite, visualCatalog.UiBlueButtonPressedSprite);
             ApplyButtonSprites(inventoryButton, visualCatalog.UiBlueButtonSprite, visualCatalog.UiBlueButtonPressedSprite);
+            ApplyButtonSprites(trainingResetButton, visualCatalog.UiRedButtonSprite, visualCatalog.UiRedButtonPressedSprite);
             ApplyButtonSprites(closeInventoryButton, visualCatalog.UiRedButtonSprite, visualCatalog.UiRedButtonPressedSprite);
 
             ApplySprite(attackButtonIcon, visualCatalog.UiAttackIconSprite, Color.white, Image.Type.Simple);
+            ApplySprite(specialSkillButtonIcon, visualCatalog.UiAttackIconSprite, new Color(0.58f, 0.93f, 1f, 1f), Image.Type.Simple);
             ApplySprite(dodgeButtonIcon, visualCatalog.UiDodgeIconSprite, Color.white, Image.Type.Simple);
             ApplySprite(inventoryButtonIcon, visualCatalog.UiInventoryIconSprite, Color.white, Image.Type.Simple);
         }
@@ -1011,6 +1145,7 @@ namespace Dreamy
             RefreshInventory();
             RefreshResources();
             RefreshQuest();
+            RefreshTrainingLog();
             RefreshMessage();
         }
 
@@ -1100,6 +1235,21 @@ namespace Dreamy
             questLabel.text = questLog != null ? questLog.BuildHudSummary(3) : "Quest: Not ready";
         }
 
+        private void RefreshTrainingLog()
+        {
+            if (trainingLogLabel == null)
+            {
+                return;
+            }
+
+            string history = trainingLogEntries.Count > 0
+                ? string.Join("\n", trainingLogEntries.ToArray())
+                : "No hits yet.";
+            trainingLogLabel.text = "TRAINING DUMMY\nHP INF\nHits " + trainingTotalHits
+                + "    Damage " + FormatCombatValue(trainingTotalDamage)
+                + "\n\n" + history;
+        }
+
         private void RefreshMessage()
         {
             if (messageLabel == null)
@@ -1133,6 +1283,62 @@ namespace Dreamy
         private void HandleResourceCollected(DreamyResourceType resourceType, int amount)
         {
             ShowMessage("Collected " + resourceType + " x" + amount);
+        }
+
+        private void HandleTrainingDummyHitRecorded(DreamyTrainingDummy dummy, DreamyTrainingDummyHitRecord record)
+        {
+            trainingTotalHits = record.HitCount;
+            trainingTotalDamage = record.TotalDamage;
+
+            string status = string.Empty;
+            if (record.SlowDuration > 0f && record.SlowMultiplier < 1f)
+            {
+                status = "  Slow " + Mathf.RoundToInt((1f - record.SlowMultiplier) * 100f) + "%";
+            }
+
+            if (record.StunDuration > 0f)
+            {
+                status += "  Stun " + FormatCombatValue(record.StunDuration) + "s";
+            }
+
+            trainingLogEntries.Enqueue(
+                FormatCombatTime(record.Time)
+                + "s  #" + record.HitCount
+                + "  DMG " + FormatCombatValue(record.Damage)
+                + "  TOTAL " + FormatCombatValue(record.TotalDamage)
+                + status);
+            while (trainingLogEntries.Count > TrainingLogLineCount)
+            {
+                trainingLogEntries.Dequeue();
+            }
+
+            ShowMessage("Dummy hit #" + record.HitCount + " for " + FormatCombatValue(record.Damage));
+            RefreshTrainingLog();
+        }
+
+        private void ResetTrainingDummyLog()
+        {
+            DreamyTrainingDummy dummy = FindAnyObjectByType<DreamyTrainingDummy>();
+            if (dummy != null)
+            {
+                dummy.ResetCounters();
+            }
+
+            trainingLogEntries.Clear();
+            trainingTotalHits = 0;
+            trainingTotalDamage = 0f;
+            ShowMessage("Dummy log reset");
+            RefreshTrainingLog();
+        }
+
+        private static string FormatCombatValue(float value)
+        {
+            return value.ToString("0.#");
+        }
+
+        private static string FormatCombatTime(float value)
+        {
+            return value.ToString("0.00");
         }
 
         private void ShowMessage(string value)

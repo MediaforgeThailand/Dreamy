@@ -14,6 +14,8 @@ namespace Dreamy
         private SpriteRenderer spriteRenderer;
         private Color startColor = Color.white;
         private float duration = 0.15f;
+        private float startScale = 0.72f;
+        private float endScale = 1.22f;
         private float startedAt;
 
         public static Sprite SlashSprite
@@ -41,14 +43,21 @@ namespace Dreamy
 
         public void Configure(float lifetime)
         {
+            Configure(lifetime, 0.72f, 1.22f);
+        }
+
+        public void Configure(float lifetime, float fromScale, float toScale)
+        {
             duration = Mathf.Max(0.03f, lifetime);
+            startScale = Mathf.Max(0.01f, fromScale);
+            endScale = Mathf.Max(startScale, toScale);
             startedAt = Time.time;
         }
 
         private void Update()
         {
             float progress = Mathf.Clamp01((Time.time - startedAt) / duration);
-            transform.localScale = Vector3.one * Mathf.Lerp(0.72f, 1.22f, progress);
+            transform.localScale = Vector3.one * Mathf.Lerp(startScale, endScale, progress);
             if (spriteRenderer != null)
             {
                 Color color = startColor;

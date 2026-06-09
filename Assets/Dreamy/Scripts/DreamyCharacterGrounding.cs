@@ -9,13 +9,18 @@ namespace Dreamy
         private const string ShadowObjectName = "Ground Shadow";
         private const string GroundedShaderName = "Dreamy/Pixel Character Grounded";
         private const string FallbackSpriteShaderName = "Sprites/Default";
+        private const string PrefsPrefix = "Dreamy.CharacterGrounding.";
 
+        [Header("Manual Shadow Tuning")]
         [SerializeField] private Color shadowColor = new Color(0f, 0f, 0f, 0.34f);
-        [SerializeField] private float shadowWidthScale = 0.68f;
-        [SerializeField] private float shadowHeight = 0.16f;
-        [SerializeField] private float shadowYOffset = 0.06f;
+        [SerializeField] private float shadowXOffset;
+        [SerializeField] private float shadowYOffset = 0f;
+        [SerializeField] private float shadowWidthScale = 0.36f;
+        [SerializeField] private float shadowHeight = 0.1f;
+        [SerializeField] private bool shadowVisible = true;
         [SerializeField] private int shadowSortingOffset = -1;
         [SerializeField] private bool applyGroundedMaterial = true;
+        [SerializeField] private bool loadSavedTuningOnAwake = true;
 
         private static Sprite sharedShadowSprite;
         private static Material sharedCharacterMaterial;
@@ -25,9 +30,44 @@ namespace Dreamy
         private SpriteRenderer shadowRenderer;
         private Transform shadowTransform;
 
+        public float ShadowXOffset
+        {
+            get => shadowXOffset;
+            set => shadowXOffset = Mathf.Clamp(value, -1.2f, 1.2f);
+        }
+
+        public float ShadowYOffset
+        {
+            get => shadowYOffset;
+            set => shadowYOffset = Mathf.Clamp(value, -1.2f, 1.2f);
+        }
+
+        public float ShadowWidthScale
+        {
+            get => shadowWidthScale;
+            set => shadowWidthScale = Mathf.Clamp(value, 0.1f, 1.4f);
+        }
+
+        public float ShadowHeight
+        {
+            get => shadowHeight;
+            set => shadowHeight = Mathf.Clamp(value, 0.02f, 0.5f);
+        }
+
+        public bool ShadowVisible
+        {
+            get => shadowVisible;
+            set => shadowVisible = value;
+        }
+
         private void Awake()
         {
             characterRenderer = GetComponent<SpriteRenderer>();
+            if (loadSavedTuningOnAwake)
+            {
+                LoadSavedTuning();
+            }
+
             EnsureShadow();
             ApplyCharacterMaterial();
             RefreshShadow();
@@ -40,8 +80,51 @@ namespace Dreamy
 
         private void OnValidate()
         {
-            shadowWidthScale = Mathf.Max(0.1f, shadowWidthScale);
-            shadowHeight = Mathf.Max(0.02f, shadowHeight);
+            ShadowXOffset = shadowXOffset;
+            ShadowYOffset = shadowYOffset;
+            ShadowWidthScale = shadowWidthScale;
+            ShadowHeight = shadowHeight;
+        }
+
+        public void SaveTuning()
+        {
+            PlayerPrefs.SetFloat(PrefsPrefix + "ShadowXOffset", shadowXOffset);
+            PlayerPrefs.SetFloat(PrefsPrefix + "ShadowYOffset", shadowYOffset);
+            PlayerPrefs.SetFloat(PrefsPrefix + "ShadowWidthScale", shadowWidthScale);
+            PlayerPrefs.SetFloat(PrefsPrefix + "ShadowHeight", shadowHeight);
+            PlayerPrefs.SetInt(PrefsPrefix + "ShadowVisible", shadowVisible ? 1 : 0);
+            PlayerPrefs.SetInt(PrefsPrefix + "HasSavedTuning", 1);
+            PlayerPrefs.Save();
+        }
+
+        public void LoadSavedTuning()
+        {
+            if (!HasSavedTuning())
+            {
+                return;
+            }
+
+            ShadowXOffset = PlayerPrefs.GetFloat(PrefsPrefix + "ShadowXOffset", shadowXOffset);
+            ShadowYOffset = PlayerPrefs.GetFloat(PrefsPrefix + "ShadowYOffset", shadowYOffset);
+            ShadowWidthScale = PlayerPrefs.GetFloat(PrefsPrefix + "ShadowWidthScale", shadowWidthScale);
+            ShadowHeight = PlayerPrefs.GetFloat(PrefsPrefix + "ShadowHeight", shadowHeight);
+            ShadowVisible = PlayerPrefs.GetInt(PrefsPrefix + "ShadowVisible", shadowVisible ? 1 : 0) != 0;
+        }
+
+        public void ClearSavedTuning()
+        {
+            PlayerPrefs.DeleteKey(PrefsPrefix + "ShadowXOffset");
+            PlayerPrefs.DeleteKey(PrefsPrefix + "ShadowYOffset");
+            PlayerPrefs.DeleteKey(PrefsPrefix + "ShadowWidthScale");
+            PlayerPrefs.DeleteKey(PrefsPrefix + "ShadowHeight");
+            PlayerPrefs.DeleteKey(PrefsPrefix + "ShadowVisible");
+            PlayerPrefs.DeleteKey(PrefsPrefix + "HasSavedTuning");
+            PlayerPrefs.Save();
+        }
+
+        public bool HasSavedTuning()
+        {
+            return PlayerPrefs.GetInt(PrefsPrefix + "HasSavedTuning", 0) != 0;
         }
 
         private void EnsureShadow()
@@ -89,15 +172,15 @@ namespace Dreamy
 
             Sprite sprite = characterRenderer.sprite;
             Bounds bounds = sprite != null ? sprite.bounds : new Bounds(Vector3.zero, new Vector3(0.8f, 1f, 0f));
-            float width = Mathf.Clamp(bounds.size.x * shadowWidthScale, 0.36f, 1.45f);
-            float y = bounds.min.y + shadowYOffset;
+            float width = Mathf.Clamp(bounds.size.x * shadowWidthScale, 0.22f, 0.72f);
 
-            shadowTransform.localPosition = new Vector3(0f, y, 0.02f);
+            shadowTransform.localPosition = new Vector3(shadowXOffset, shadowYOffset, 0.02f);
             shadowTransform.localRotation = Quaternion.identity;
             shadowTransform.localScale = new Vector3(width, shadowHeight, 1f);
             shadowRenderer.sortingLayerID = characterRenderer.sortingLayerID;
             shadowRenderer.sortingOrder = characterRenderer.sortingOrder + shadowSortingOffset;
             shadowRenderer.color = shadowColor;
+            shadowRenderer.enabled = shadowVisible;
         }
 
         private static Sprite GetShadowSprite()

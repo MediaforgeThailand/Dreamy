@@ -21,6 +21,7 @@ namespace Dreamy
         private DreamyExperience experience;
         private DreamyPlayerProgression progression;
         private DreamyCameraFollow cameraFollow;
+        private DreamyCharacterGrounding characterGrounding;
         private Vector2 scrollPosition;
         private float nextRefreshTime;
 
@@ -122,6 +123,11 @@ namespace Dreamy
                 progression = player.GetComponent<DreamyPlayerProgression>();
             }
 
+            if (characterGrounding == null && player != null)
+            {
+                characterGrounding = player.GetComponent<DreamyCharacterGrounding>();
+            }
+
             if (characterStats == null)
             {
                 characterStats = Object.FindFirstObjectByType<DreamyCharacterStats>();
@@ -146,6 +152,11 @@ namespace Dreamy
             {
                 cameraFollow = Object.FindFirstObjectByType<DreamyCameraFollow>();
             }
+
+            if (characterGrounding == null)
+            {
+                characterGrounding = Object.FindFirstObjectByType<DreamyCharacterGrounding>();
+            }
         }
 
         private void DrawWindow(int id)
@@ -160,6 +171,8 @@ namespace Dreamy
             DrawCharacterTools();
             GUILayout.Space(6f);
             DrawProgressionTools();
+            GUILayout.Space(6f);
+            DrawGroundingTools();
             GUILayout.Space(6f);
             DrawInventoryTools();
             GUILayout.Space(6f);
@@ -180,6 +193,7 @@ namespace Dreamy
                 experience = null;
                 progression = null;
                 cameraFollow = null;
+                characterGrounding = null;
                 RefreshTargets();
             }
             GUILayout.EndHorizontal();
@@ -229,6 +243,13 @@ namespace Dreamy
             characterStats.MaxStamina = SliderField("Max Stamina", characterStats.MaxStamina, 1f, 300f);
             characterStats.CurrentStamina = SliderField("Stamina", characterStats.CurrentStamina, 0f, characterStats.MaxStamina);
             characterStats.Damage = SliderField("Damage", characterStats.Damage, 0f, 100f);
+            characterStats.Strength = SliderField("Str", characterStats.Strength, 0f, 80f);
+            characterStats.Agility = SliderField("Agi", characterStats.Agility, 0f, 80f);
+            characterStats.AttackSpeed = SliderField("Attack Speed", characterStats.AttackSpeed, 0.1f, 3f);
+            characterStats.CriticalChance = SliderField("Crit Rate", characterStats.CriticalChance, 0f, 1f);
+            characterStats.CriticalDamageMultiplier = SliderField("Crit Damage", characterStats.CriticalDamageMultiplier, 1f, 4f);
+            characterStats.StatusResistance = SliderField("Status Resist", characterStats.StatusResistance, 0f, 1f);
+            GUILayout.Label($"Effective ATK SPD x{characterStats.AttackSpeedMultiplier:0.00} | Move x{characterStats.MovementSpeedMultiplier:0.00}");
 
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("-10 HP", GUILayout.Height(ButtonHeight)))
@@ -240,6 +261,18 @@ namespace Dreamy
             {
                 characterStats.CurrentHealth = characterStats.MaxHealth;
                 characterStats.CurrentStamina = characterStats.MaxStamina;
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Slow 50%", GUILayout.Height(ButtonHeight)))
+            {
+                characterStats.ApplySlow(0.5f, 2f);
+            }
+
+            if (GUILayout.Button("Stun", GUILayout.Height(ButtonHeight)))
+            {
+                characterStats.ApplyStun(1f);
             }
             GUILayout.EndHorizontal();
         }
@@ -325,6 +358,59 @@ namespace Dreamy
                 DreamyInventorySlot item = inventory.Items[i];
                 GUILayout.Label($"{item.DisplayName}: {item.Quantity}");
             }
+        }
+
+        private void DrawGroundingTools()
+        {
+            GUILayout.Label("Shadow");
+            if (characterGrounding == null)
+            {
+                GUILayout.Label("No DreamyCharacterGrounding found.");
+                return;
+            }
+
+            characterGrounding.ShadowVisible = GUILayout.Toggle(characterGrounding.ShadowVisible, "Show Shadow");
+            characterGrounding.ShadowXOffset = SliderField("Shadow X", characterGrounding.ShadowXOffset, -0.8f, 0.8f);
+            characterGrounding.ShadowYOffset = SliderField("Shadow Y", characterGrounding.ShadowYOffset, -0.8f, 0.8f);
+            characterGrounding.ShadowWidthScale = SliderField("Shadow W", characterGrounding.ShadowWidthScale, 0.1f, 1.2f);
+            characterGrounding.ShadowHeight = SliderField("Shadow H", characterGrounding.ShadowHeight, 0.02f, 0.36f);
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Foot", GUILayout.Height(ButtonHeight)))
+            {
+                characterGrounding.ShadowXOffset = 0f;
+                characterGrounding.ShadowYOffset = 0f;
+                characterGrounding.ShadowWidthScale = 0.36f;
+                characterGrounding.ShadowHeight = 0.1f;
+            }
+
+            if (GUILayout.Button("Lower", GUILayout.Height(ButtonHeight)))
+            {
+                characterGrounding.ShadowXOffset = 0f;
+                characterGrounding.ShadowYOffset = -0.18f;
+                characterGrounding.ShadowWidthScale = 0.42f;
+                characterGrounding.ShadowHeight = 0.1f;
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Save", GUILayout.Height(ButtonHeight)))
+            {
+                characterGrounding.SaveTuning();
+            }
+
+            if (GUILayout.Button("Load", GUILayout.Height(ButtonHeight)))
+            {
+                characterGrounding.LoadSavedTuning();
+            }
+
+            if (GUILayout.Button("Clear", GUILayout.Height(ButtonHeight)))
+            {
+                characterGrounding.ClearSavedTuning();
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Label(characterGrounding.HasSavedTuning() ? "Saved shadow tuning active." : "No saved shadow tuning.");
         }
 
         private void DrawCameraTools()

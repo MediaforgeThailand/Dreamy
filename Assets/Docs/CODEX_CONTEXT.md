@@ -4,6 +4,10 @@ Primary design source for this prototype:
 
 `C:/Users/taksi/Desktop/DREAMY Project/GameDesign.md`
 
+Codex working agreement:
+
+`AGENTS.md`
+
 Asset context:
 
 `Assets/Docs/context.md`

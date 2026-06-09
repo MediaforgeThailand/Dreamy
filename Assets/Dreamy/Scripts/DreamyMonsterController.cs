@@ -7,7 +7,7 @@ namespace Dreamy
     [RequireComponent(typeof(Rigidbody2D))]
     [RequireComponent(typeof(CircleCollider2D))]
     [RequireComponent(typeof(DreamyCharacterStats))]
-    public sealed class DreamyMonsterController : MonoBehaviour
+    public sealed class DreamyMonsterController : MonoBehaviour, IDreamyCombatTarget
     {
         private const float DefaultSheetPixelsPerUnit = 128f;
         private const float DefaultVisualScale = 1.45f;
@@ -26,6 +26,10 @@ namespace Dreamy
         [SerializeField] private float attackRange = 0.92f;
         [SerializeField] private float attackDamage = 9f;
         [SerializeField] private float attackCooldown = 1.25f;
+        [SerializeField] private float attackHitMarkerNormalizedTime = 0.52f;
+        [SerializeField] private float attackConeDegrees = 100f;
+        [SerializeField] private float attackOriginDistance = 0.16f;
+        [SerializeField] private float attackRangeGrace = 0.24f;
         [SerializeField] private float knockbackResistance = 2.5f;
         [SerializeField] private float visualScale = DefaultVisualScale;
         [SerializeField] private float knockbackDuration = 0.18f;
@@ -62,12 +66,17 @@ namespace Dreamy
         private bool attackDamageApplied;
         private bool hasDied;
         private float nextCollisionRefresh;
+        private Vector2 attackDirection = Vector2.left;
         private AnimationState animationState = AnimationState.Idle;
 
         public bool IsAlive => stats == null || stats.IsAlive;
         public DreamyCharacterStats Stats => stats;
         public string MonsterDisplayName => string.IsNullOrEmpty(monsterDisplayName) ? gameObject.name : monsterDisplayName;
         public int MonsterLevel => Mathf.Max(1, monsterLevel);
+        public bool IsTargetAlive => IsAlive;
+        public Transform TargetTransform => transform;
+        public Collider2D TargetCollider => hitbox != null ? hitbox : GetComponent<Collider2D>();
+        public string TargetDisplayName => MonsterDisplayName;
 
         private enum AnimationState
         {
@@ -174,6 +183,14 @@ namespace Dreamy
 
             RefreshCharacterCollisionIgnores();
 
+            if (stats != null && stats.IsStunned)
+            {
+                DreamyCharacterCollisionUtility.StopBodyDrift(body);
+                Animate(AnimationState.Idle, idleFrames, idleFramesPerSecond);
+                RefreshHitFlash();
+                return;
+            }
+
             if (IsAttacking())
             {
                 Animate(AnimationState.Attack, attackFrames, attackFramesPerSecond);
@@ -217,6 +234,12 @@ namespace Dreamy
                 return;
             }
 
+            if (stats != null && stats.IsStunned)
+            {
+                DreamyCharacterCollisionUtility.StopBodyDrift(body);
+                return;
+            }
+
             if (IsKnockedBack())
             {
                 body.MovePosition(body.position + knockbackVelocity * Time.fixedDeltaTime);
@@ -238,7 +261,8 @@ namespace Dreamy
                 return;
             }
 
-            body.MovePosition(body.position + toTarget.normalized * (chaseSpeed * Time.fixedDeltaTime));
+            float movementMultiplier = stats != null ? stats.MovementSpeedMultiplier : 1f;
+            body.MovePosition(body.position + toTarget.normalized * (chaseSpeed * movementMultiplier * Time.fixedDeltaTime));
         }
 
         private void RefreshCharacterCollisionIgnores(bool force = false)
@@ -264,6 +288,17 @@ namespace Dreamy
 
         public void ApplyHit(float amount, Vector2 hitSourcePosition, float knockbackForce)
         {
+            ApplyHit(amount, hitSourcePosition, knockbackForce, 1f, 0f, 0f);
+        }
+
+        public void ApplyHit(
+            float amount,
+            Vector2 hitSourcePosition,
+            float knockbackForce,
+            float slowMultiplier,
+            float slowDuration,
+            float stunDuration)
+        {
             if (stats != null)
             {
                 stats.TakeDamage(amount);
@@ -274,12 +309,29 @@ namespace Dreamy
                 return;
             }
 
+            if (stats != null)
+            {
+                stats.ApplySlow(slowMultiplier, slowDuration);
+                stats.ApplyStun(stunDuration);
+            }
+
             ApplyKnockback(hitSourcePosition, knockbackForce);
             hitFlashEndsAt = Time.time + hitFlashDuration;
             if (hitFrames != null && hitFrames.Length > 0)
             {
                 hitAnimationEndsAt = Time.time + Mathf.Max(0.1f, hitFrameCount / Mathf.Max(1f, attackFramesPerSecond));
             }
+        }
+
+        public void ReceiveCombatHit(
+            float amount,
+            Vector2 hitSourcePosition,
+            float knockbackForce,
+            float slowMultiplier,
+            float slowDuration,
+            float stunDuration)
+        {
+            ApplyHit(amount, hitSourcePosition, knockbackForce, slowMultiplier, slowDuration, stunDuration);
         }
 
         private void ApplyKnockback(Vector2 hitSourcePosition, float force)
@@ -304,10 +356,23 @@ namespace Dreamy
         private void StartAttack()
         {
             attackDamageApplied = false;
-            float duration = Mathf.Max(0.2f, attackFrameCount / Mathf.Max(1f, attackFramesPerSecond));
+            attackDirection = GetVectorToTarget();
+            if (attackDirection.sqrMagnitude < 0.01f)
+            {
+                attackDirection = spriteRenderer != null && spriteRenderer.flipX ? Vector2.left : Vector2.right;
+            }
+
+            attackDirection.Normalize();
+            if (spriteRenderer != null && Mathf.Abs(attackDirection.x) > 0.02f)
+            {
+                spriteRenderer.flipX = attackDirection.x < 0f;
+            }
+
+            float attackSpeedMultiplier = stats != null ? stats.AttackSpeedMultiplier : 1f;
+            float duration = Mathf.Max(0.2f / attackSpeedMultiplier, attackFrameCount / Mathf.Max(1f, attackFramesPerSecond * attackSpeedMultiplier));
             attackEndsAt = Time.time + duration;
-            attackHitsAt = Time.time + duration * 0.52f;
-            nextAttackTime = Time.time + attackCooldown;
+            attackHitsAt = Time.time + duration * Mathf.Clamp01(attackHitMarkerNormalizedTime);
+            nextAttackTime = Time.time + attackCooldown / attackSpeedMultiplier;
             animationTime = 0f;
         }
 
@@ -319,7 +384,7 @@ namespace Dreamy
             }
 
             attackDamageApplied = true;
-            if (Vector2.Distance(transform.position, target.position) > attackRange + 0.24f)
+            if (!IsTargetInsideAttackArc())
             {
                 return;
             }
@@ -327,13 +392,54 @@ namespace Dreamy
             DreamyCharacterStats targetStats = target.GetComponentInParent<DreamyCharacterStats>();
             if (targetStats != null)
             {
-                targetStats.TakeDamage(attackDamage);
+                float resolvedDamage = stats != null
+                    ? stats.ResolveOutgoingDamage(attackDamage, 1f, out _)
+                    : attackDamage;
+                targetStats.TakeDamage(resolvedDamage);
             }
+        }
+
+        public void DreamyAnimationHitMarker()
+        {
+            TryApplyAttackDamage();
         }
 
         private bool IsAttacking()
         {
             return Time.time < attackEndsAt;
+        }
+
+        private bool IsTargetInsideAttackArc()
+        {
+            if (target == null)
+            {
+                return false;
+            }
+
+            Vector2 normalizedDirection = attackDirection.sqrMagnitude >= 0.01f
+                ? attackDirection.normalized
+                : GetVectorToTarget().normalized;
+            if (normalizedDirection.sqrMagnitude < 0.01f)
+            {
+                normalizedDirection = spriteRenderer != null && spriteRenderer.flipX ? Vector2.left : Vector2.right;
+            }
+
+            Vector2 origin = (Vector2)transform.position + normalizedDirection * attackOriginDistance;
+            Vector2 toTarget = (Vector2)target.position - origin;
+            if (toTarget.sqrMagnitude < 0.0001f)
+            {
+                return true;
+            }
+
+            float range = attackRange + attackRangeGrace;
+            if (toTarget.sqrMagnitude > range * range)
+            {
+                return false;
+            }
+
+            float halfCone = Mathf.Clamp(attackConeDegrees, 1f, 360f) * 0.5f;
+            float minimumDot = Mathf.Cos(halfCone * Mathf.Deg2Rad);
+            return Vector2.Dot(normalizedDirection, toTarget.normalized) >= minimumDot;
         }
 
         private Vector2 GetVectorToTarget()
@@ -586,6 +692,10 @@ namespace Dreamy
             attackRange = Mathf.Max(0.1f, attackRange);
             attackDamage = Mathf.Max(0f, attackDamage);
             attackCooldown = Mathf.Max(0.05f, attackCooldown);
+            attackHitMarkerNormalizedTime = Mathf.Clamp01(attackHitMarkerNormalizedTime);
+            attackConeDegrees = Mathf.Clamp(attackConeDegrees, 1f, 360f);
+            attackOriginDistance = Mathf.Max(0f, attackOriginDistance);
+            attackRangeGrace = Mathf.Max(0f, attackRangeGrace);
             knockbackResistance = Mathf.Max(0f, knockbackResistance);
             visualScale = Mathf.Clamp(visualScale <= 0f ? DefaultVisualScale : visualScale, 0.35f, 3.5f);
             knockbackDuration = Mathf.Max(0.02f, knockbackDuration);
@@ -599,6 +709,59 @@ namespace Dreamy
             idleFramesPerSecond = Mathf.Max(0.1f, idleFramesPerSecond);
             runFramesPerSecond = Mathf.Max(0.1f, runFramesPerSecond);
             attackFramesPerSecond = Mathf.Max(0.1f, attackFramesPerSecond);
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            Vector2 direction = Application.isPlaying && attackDirection.sqrMagnitude >= 0.01f
+                ? attackDirection
+                : ResolveGizmoDirection();
+            DrawAttackArc(direction, attackRange + attackRangeGrace, attackConeDegrees, new Color(1f, 0.35f, 0.24f, 0.62f));
+        }
+
+        private Vector2 ResolveGizmoDirection()
+        {
+            if (target != null)
+            {
+                Vector2 toTarget = (Vector2)(target.position - transform.position);
+                if (toTarget.sqrMagnitude >= 0.01f)
+                {
+                    return toTarget.normalized;
+                }
+            }
+
+            return spriteRenderer != null && spriteRenderer.flipX ? Vector2.left : Vector2.right;
+        }
+
+        private void DrawAttackArc(Vector2 direction, float range, float degrees, Color color)
+        {
+            if (direction.sqrMagnitude < 0.01f)
+            {
+                direction = Vector2.right;
+            }
+
+            Vector3 origin = transform.position + (Vector3)(direction.normalized * attackOriginDistance);
+            float baseAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            float halfCone = Mathf.Clamp(degrees, 1f, 360f) * 0.5f;
+            int segments = 18;
+            Gizmos.color = color;
+            Vector3 previousPoint = origin;
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = (baseAngle - halfCone + degrees * i / segments) * Mathf.Deg2Rad;
+                Vector3 point = origin + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * range;
+                if (i > 0)
+                {
+                    Gizmos.DrawLine(previousPoint, point);
+                }
+
+                previousPoint = point;
+            }
+
+            float leftAngle = (baseAngle - halfCone) * Mathf.Deg2Rad;
+            float rightAngle = (baseAngle + halfCone) * Mathf.Deg2Rad;
+            Gizmos.DrawLine(origin, origin + new Vector3(Mathf.Cos(leftAngle), Mathf.Sin(leftAngle), 0f) * range);
+            Gizmos.DrawLine(origin, origin + new Vector3(Mathf.Cos(rightAngle), Mathf.Sin(rightAngle), 0f) * range);
         }
     }
 }
