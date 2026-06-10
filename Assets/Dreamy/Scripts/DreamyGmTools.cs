@@ -7,7 +7,7 @@ namespace Dreamy
         private const int WindowId = 80421;
         private const float RefreshInterval = 0.5f;
         private const float WindowWidth = 300f;
-        private const float WindowHeight = 430f;
+        private const float WindowHeight = 460f;
         private const float ButtonHeight = 24f;
         private const float LabelWidth = 104f;
         private const float SliderWidth = 138f;
@@ -254,7 +254,31 @@ namespace Dreamy
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("-10 HP", GUILayout.Height(ButtonHeight)))
             {
-                characterStats.TakeDamage(10f);
+                characterStats.TakeDamage(10f, true);
+            }
+
+            if (GUILayout.Button("+10 HP", GUILayout.Height(ButtonHeight)))
+            {
+                characterStats.Heal(10f);
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("-25 ST", GUILayout.Height(ButtonHeight)))
+            {
+                characterStats.TrySpendStamina(25f);
+            }
+
+            if (GUILayout.Button("+25 ST", GUILayout.Height(ButtonHeight)))
+            {
+                characterStats.RestoreStamina(25f);
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Kill", GUILayout.Height(ButtonHeight)))
+            {
+                characterStats.TakeDamage(characterStats.CurrentHealth, true);
             }
 
             if (GUILayout.Button("Restore", GUILayout.Height(ButtonHeight)))

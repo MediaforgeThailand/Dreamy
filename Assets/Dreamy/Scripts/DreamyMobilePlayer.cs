@@ -27,12 +27,27 @@ namespace Dreamy
         private static readonly int AnimatorAttack2StateHash = Animator.StringToHash("Base Layer.Attack 2");
         private static readonly int AnimatorAttack3StateHash = Animator.StringToHash("Base Layer.Attack 3");
         private static readonly int AnimatorSuperSmashStateHash = Animator.StringToHash("Base Layer.Super Smash");
+        private const float StopSpeedThreshold = 0.03f;
         public const float DefaultMoveSpeed = 4.2f;
 
+        [Header("Movement Feel")]
         [SerializeField] private float moveSpeed = DefaultMoveSpeed;
+        [SerializeField] private float acceleration = 28f;
+        [SerializeField] private float deceleration = 34f;
+        [SerializeField] private float turnAcceleration = 42f;
+        [SerializeField, Range(0f, 0.45f)] private float inputDeadZone = 0.12f;
+
+        [Header("Sprint")]
+        [SerializeField, Min(1f)] private float sprintSpeedMultiplier = 1.35f;
+        [SerializeField, Min(0f)] private float sprintStaminaPerSecond = 18f;
+        [SerializeField, Min(0f)] private float sprintStartStamina = 8f;
+
+        [Header("References")]
         [SerializeField] private DreamyVirtualJoystick joystick;
         [SerializeField] private Vector2 minBounds = new Vector2(-3.3f, -5.2f);
         [SerializeField] private Vector2 maxBounds = new Vector2(3.3f, 5.2f);
+
+        [Header("Animation")]
         [SerializeField] private Sprite[] idleFrames;
         [SerializeField] private Sprite[] walkFrames;
         [SerializeField] private Sprite[] attackFrames;
@@ -46,6 +61,8 @@ namespace Dreamy
         [SerializeField] private float hurtFramesPerSecond = 12f;
         [SerializeField] private float specialAttackFramesPerSecond = 18f;
         [SerializeField] private float attackMoveSpeedMultiplier = 0.35f;
+
+        [Header("Dodge")]
         [SerializeField] private float dodgeSpeed = 10.5f;
         [SerializeField] private float dodgeDuration = 0.18f;
         [SerializeField] private float dodgeCooldown = 0.55f;
@@ -53,7 +70,9 @@ namespace Dreamy
         [SerializeField] private bool sourceFacesLeft;
 
         private bool wasMoving;
+        private bool isSprinting;
         private float animationTime;
+        private Vector2 currentVelocity;
         private Vector2 movementInput;
         private Vector2 lastMoveDirection = Vector2.down;
         private Vector2 dodgeDirection = Vector2.down;
@@ -82,6 +101,9 @@ namespace Dreamy
         private Animator animator;
         private bool useAnimatorController;
         private float nextCollisionRefresh;
+
+        public Vector2 CurrentVelocity => currentVelocity;
+        public bool IsSprinting => isSprinting;
 
         public float MoveSpeed
         {
@@ -160,26 +182,36 @@ namespace Dreamy
 
         private void Update()
         {
-            movementInput = ReadMovementInput();
+            bool canAct = characterStats == null || (characterStats.IsAlive && !characterStats.IsStunned);
+            movementInput = canAct ? ReadMovementInput() : Vector2.zero;
             if (movementInput.sqrMagnitude >= 0.01f)
             {
                 lastMoveDirection = movementInput.normalized;
             }
 
-            if (Input.GetKeyDown(KeyCode.Space))
+            if (canAct && Input.GetKeyDown(KeyCode.Space))
             {
                 QueueDodge();
             }
 
-            if (queuedDodge)
+            if (canAct && queuedDodge)
             {
                 queuedDodge = false;
                 TryStartDodge();
             }
+            else if (!canAct)
+            {
+                queuedDodge = false;
+            }
 
-            Animate(IsDodging() ? dodgeDirection : movementInput);
-            TryCollectNearbyResource();
-            RefreshCharacterCollisionIgnores();
+            bool isActivelyDodging = canAct && IsDodging();
+            Animate(isActivelyDodging ? dodgeDirection * dodgeSpeed : currentVelocity, movementInput);
+
+            if (canAct)
+            {
+                TryCollectNearbyResource();
+                RefreshCharacterCollisionIgnores();
+            }
         }
 
         private void Start()
@@ -189,14 +221,42 @@ namespace Dreamy
 
         private void FixedUpdate()
         {
-            if (IsDodging())
+            if (characterStats != null && !characterStats.IsAlive)
             {
-                Move(dodgeDirection, dodgeSpeed * GetMovementSpeedMultiplier(), true);
+                isSprinting = false;
+                currentVelocity = Vector2.zero;
+                DreamyCharacterCollisionUtility.StopBodyDrift(rigidbody2d);
                 return;
             }
 
-            float activeMoveSpeed = IsAttacking ? moveSpeed * attackMoveSpeedMultiplier : moveSpeed;
-            Move(movementInput, activeMoveSpeed * GetMovementSpeedMultiplier(), false);
+            float movementSpeedMultiplier = GetMovementSpeedMultiplier();
+            if (movementSpeedMultiplier <= 0f)
+            {
+                isSprinting = false;
+                currentVelocity = Vector2.zero;
+                DreamyCharacterCollisionUtility.StopBodyDrift(rigidbody2d);
+                return;
+            }
+
+            if (IsDodging())
+            {
+                isSprinting = false;
+                currentVelocity = dodgeDirection * dodgeSpeed;
+                Move(currentVelocity * movementSpeedMultiplier, Time.fixedDeltaTime);
+                return;
+            }
+
+            if (IsAttacking)
+            {
+                isSprinting = false;
+                UpdateVelocity(movementInput, Time.fixedDeltaTime);
+                Move(currentVelocity * attackMoveSpeedMultiplier * movementSpeedMultiplier, Time.fixedDeltaTime);
+                return;
+            }
+
+            UpdateSprintState(movementInput, Time.fixedDeltaTime);
+            UpdateVelocity(movementInput, Time.fixedDeltaTime);
+            Move(currentVelocity * movementSpeedMultiplier, Time.fixedDeltaTime);
         }
 
         public void Bind(DreamyVirtualJoystick movementJoystick, Sprite[] idleSprites, Sprite[] walkSprites)
@@ -446,6 +506,15 @@ namespace Dreamy
             maxBounds = maximum;
         }
 
+        public void SetMovementTuning(float maximumSpeed, float accelerationRate, float decelerationRate, float turnAccelerationRate, float deadZone)
+        {
+            moveSpeed = Mathf.Max(0f, maximumSpeed);
+            acceleration = Mathf.Max(0f, accelerationRate);
+            deceleration = Mathf.Max(0f, decelerationRate);
+            turnAcceleration = Mathf.Max(0f, turnAccelerationRate);
+            inputDeadZone = Mathf.Clamp(deadZone, 0f, 0.45f);
+        }
+
         public void QueueDodge()
         {
             queuedDodge = true;
@@ -514,6 +583,13 @@ namespace Dreamy
         private void OnValidate()
         {
             moveSpeed = Mathf.Max(0f, moveSpeed);
+            acceleration = Mathf.Max(0f, acceleration);
+            deceleration = Mathf.Max(0f, deceleration);
+            turnAcceleration = Mathf.Max(0f, turnAcceleration);
+            inputDeadZone = Mathf.Clamp(inputDeadZone, 0f, 0.45f);
+            sprintSpeedMultiplier = Mathf.Max(1f, sprintSpeedMultiplier);
+            sprintStaminaPerSecond = Mathf.Max(0f, sprintStaminaPerSecond);
+            sprintStartStamina = Mathf.Max(0f, sprintStartStamina);
             dodgeSpeed = Mathf.Max(0f, dodgeSpeed);
             dodgeDuration = Mathf.Max(0f, dodgeDuration);
             dodgeCooldown = Mathf.Max(0f, dodgeCooldown);
@@ -534,7 +610,15 @@ namespace Dreamy
                 input = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
             }
 
-            return Vector2.ClampMagnitude(input, 1f);
+            input = Vector2.ClampMagnitude(input, 1f);
+            float magnitude = input.magnitude;
+            if (magnitude <= inputDeadZone)
+            {
+                return Vector2.zero;
+            }
+
+            float scaledMagnitude = Mathf.InverseLerp(inputDeadZone, 1f, magnitude);
+            return input / magnitude * scaledMagnitude;
         }
 
         private bool TryStartDodge()
@@ -563,6 +647,7 @@ namespace Dreamy
                 SetAnimatorTrigger(AnimatorDashHash);
             }
 
+            currentVelocity = dodgeDirection * dodgeSpeed;
             return true;
         }
 
@@ -571,19 +656,77 @@ namespace Dreamy
             return Time.time < dodgeEndsAt;
         }
 
-        private void Move(Vector2 input, float speed, bool normalizeInput)
+        private void UpdateSprintState(Vector2 input, float deltaTime)
         {
-            if (input.sqrMagnitude < 0.0025f || speed <= 0f)
+            bool wasSprinting = isSprinting;
+            isSprinting = false;
+
+            if (characterStats == null || !characterStats.IsAlive || characterStats.IsStunned || input.sqrMagnitude < 0.01f || !WantsSprint())
+            {
+                return;
+            }
+
+            if (!wasSprinting && characterStats.CurrentStamina < sprintStartStamina)
+            {
+                return;
+            }
+
+            isSprinting = characterStats.TrySpendStamina(sprintStaminaPerSecond * deltaTime);
+        }
+
+        private static bool WantsSprint()
+        {
+            return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+        }
+
+        private void UpdateVelocity(Vector2 input, float deltaTime)
+        {
+            float targetSpeed = isSprinting ? moveSpeed * sprintSpeedMultiplier : moveSpeed;
+            Vector2 desiredVelocity = input * targetSpeed;
+            float response = desiredVelocity.sqrMagnitude > 0f ? acceleration : deceleration;
+
+            if (desiredVelocity.sqrMagnitude > 0f && currentVelocity.sqrMagnitude > 0f)
+            {
+                float directionDot = Vector2.Dot(currentVelocity.normalized, desiredVelocity.normalized);
+                if (directionDot < 0.45f)
+                {
+                    response = turnAcceleration;
+                }
+            }
+
+            currentVelocity = Vector2.MoveTowards(currentVelocity, desiredVelocity, response * deltaTime);
+            if (currentVelocity.magnitude < StopSpeedThreshold)
+            {
+                currentVelocity = Vector2.zero;
+            }
+        }
+
+        private void Move(Vector2 velocity, float deltaTime)
+        {
+            if (rigidbody2d == null && velocity.sqrMagnitude < 0.0001f)
+            {
+                return;
+            }
+
+            if (velocity.sqrMagnitude < 0.0001f)
             {
                 DreamyCharacterCollisionUtility.StopBodyDrift(rigidbody2d);
                 return;
             }
 
-            Vector2 motion = normalizeInput ? input.normalized : input;
             Vector2 current = rigidbody2d != null ? rigidbody2d.position : (Vector2)transform.position;
-            Vector2 next = current + motion * (speed * Time.fixedDeltaTime);
-            next.x = Mathf.Clamp(next.x, minBounds.x, maxBounds.x);
-            next.y = Mathf.Clamp(next.y, minBounds.y, maxBounds.y);
+            Vector2 unclampedNext = current + velocity * deltaTime;
+            Vector2 next = ClampToBounds(unclampedNext);
+
+            if (!Mathf.Approximately(next.x, unclampedNext.x))
+            {
+                currentVelocity.x = 0f;
+            }
+
+            if (!Mathf.Approximately(next.y, unclampedNext.y))
+            {
+                currentVelocity.y = 0f;
+            }
 
             if (rigidbody2d != null)
             {
@@ -594,10 +737,18 @@ namespace Dreamy
                 transform.position = new Vector3(next.x, next.y, transform.position.z);
             }
 
-            if (spriteRenderer != null && Mathf.Abs(input.x) > 0.01f)
+            Vector2 facing = velocity.sqrMagnitude > 0.0001f ? velocity : movementInput;
+            if (spriteRenderer != null && Mathf.Abs(facing.x) > 0.01f)
             {
                 ApplyFacingFlip();
             }
+        }
+
+        private Vector2 ClampToBounds(Vector2 position)
+        {
+            position.x = Mathf.Clamp(position.x, minBounds.x, maxBounds.x);
+            position.y = Mathf.Clamp(position.y, minBounds.y, maxBounds.y);
+            return position;
         }
 
         private void RefreshCharacterCollisionIgnores()
@@ -611,11 +762,11 @@ namespace Dreamy
             DreamyCharacterCollisionUtility.IgnoreCollisionWithAll<DreamyMonsterController>(this);
         }
 
-        private void Animate(Vector2 input)
+        private void Animate(Vector2 velocity, Vector2 input)
         {
             if (UseAnimatorController())
             {
-                AnimateWithAnimator(input);
+                AnimateWithAnimator(input.sqrMagnitude >= 0.0025f ? input : velocity);
                 return;
             }
 
@@ -643,7 +794,7 @@ namespace Dreamy
                 return;
             }
 
-            bool isMoving = input.sqrMagnitude >= 0.0025f;
+            bool isMoving = velocity.sqrMagnitude >= 0.01f || input.sqrMagnitude >= 0.01f;
             Sprite[] frames = isMoving && walkFrames != null && walkFrames.Length > 0 ? walkFrames : idleFrames;
 
             if (frames == null || frames.Length == 0)
@@ -657,7 +808,9 @@ namespace Dreamy
                 animationTime = 0f;
             }
 
-            float framesPerSecond = isMoving ? walkFramesPerSecond : idleFramesPerSecond;
+            float maxAnimatedSpeed = Mathf.Max(moveSpeed * sprintSpeedMultiplier, dodgeSpeed, 0.01f);
+            float speedRatio = Mathf.Clamp01(velocity.magnitude / maxAnimatedSpeed);
+            float framesPerSecond = isMoving ? Mathf.Lerp(walkFramesPerSecond * 0.7f, walkFramesPerSecond, speedRatio) : idleFramesPerSecond;
             animationTime += Time.deltaTime * framesPerSecond;
             int frameIndex = Mathf.FloorToInt(animationTime) % frames.Length;
             ApplyFrame(frames, frameIndex);
@@ -1111,6 +1264,5 @@ namespace Dreamy
                 }
             }
         }
-
     }
 }

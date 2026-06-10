@@ -241,7 +241,8 @@ namespace Dreamy.Editor
             camera.orthographic = true;
             camera.orthographicSize = 8f;
             camera.transform.position = new Vector3(0f, 0f, -10f);
-            cameraObject.AddComponent<DreamyCameraFollow>();
+            DreamyCameraFollow follow = cameraObject.AddComponent<DreamyCameraFollow>();
+            follow.SetFollowTuning(0.28f, 5.8f, 0.18f);
             return camera;
         }
 
@@ -298,6 +299,7 @@ namespace Dreamy.Editor
 
             follow.Target = player.transform;
             follow.SetBounds(playerMinBounds, playerMaxBounds);
+            follow.SetFollowTuning(0.28f, 5.8f, 0.18f);
             camera.transform.position = new Vector3(playerStart.x, playerStart.y, camera.transform.position.z);
         }
 
@@ -812,7 +814,23 @@ namespace Dreamy.Editor
             DreamyMobilePlayer controller = player.AddComponent<DreamyMobilePlayer>();
             controller.Bind(joystick, idleFrames, walkFrames);
             controller.SetMovementBounds(minBounds, maxBounds);
+            controller.SetMovementTuning(4.2f, 28f, 34f, 42f, 0.12f);
+            ConfigurePlayerRigidbody(player.GetComponent<Rigidbody2D>());
             return player;
+        }
+
+        private static void ConfigurePlayerRigidbody(Rigidbody2D playerBody)
+        {
+            if (playerBody == null)
+            {
+                return;
+            }
+
+            playerBody.bodyType = RigidbodyType2D.Dynamic;
+            playerBody.gravityScale = 0f;
+            playerBody.freezeRotation = true;
+            playerBody.interpolation = RigidbodyInterpolation2D.Interpolate;
+            playerBody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         }
 
         private static void CreateResource(Transform parent, string name, DreamyResourceType type, string spritePath, Vector2 position, float scale)
@@ -952,8 +970,8 @@ namespace Dreamy.Editor
             rootRect.anchorMin = new Vector2(0f, 0f);
             rootRect.anchorMax = new Vector2(0f, 0f);
             rootRect.pivot = new Vector2(0.5f, 0.5f);
-            rootRect.anchoredPosition = new Vector2(170f, 155f);
-            rootRect.sizeDelta = new Vector2(220f, 220f);
+            rootRect.anchoredPosition = new Vector2(190f, 170f);
+            rootRect.sizeDelta = new Vector2(252f, 252f);
 
             GameObject handle = new GameObject("Joystick Handle");
             handle.transform.SetParent(joystickRoot.transform, false);
@@ -968,10 +986,10 @@ namespace Dreamy.Editor
             handleRect.anchorMax = new Vector2(0.5f, 0.5f);
             handleRect.pivot = new Vector2(0.5f, 0.5f);
             handleRect.anchoredPosition = Vector2.zero;
-            handleRect.sizeDelta = new Vector2(92f, 92f);
+            handleRect.sizeDelta = new Vector2(104f, 104f);
 
             DreamyVirtualJoystick joystick = joystickRoot.AddComponent<DreamyVirtualJoystick>();
-            joystick.Bind(handleRect, 82f);
+            joystick.Bind(handleRect, 96f);
             return joystick;
         }
 
